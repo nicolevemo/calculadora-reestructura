@@ -12,3 +12,4 @@ reestructura-app/.env*.local
 reestructura-app/npm-debug.log*
 reestructura-app/yarn-debug.log*
 reestructura-app/yarn-error.log*
+.vercel
