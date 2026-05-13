@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { STATUS, STATUS_ORDER } from "@/lib/constants";
+import { isClienteExportado } from "@/lib/cliente-export";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
 
@@ -79,8 +80,13 @@ export function DashboardClients({
     return r;
   }, [rows, status, q]);
 
+  const exportableFiltered = useMemo(
+    () => filtered.filter((row) => !isClienteExportado(row.exported_at)),
+    [filtered]
+  );
+
   useEffect(() => {
-    const allowed = new Set(filtered.map((r) => r.id));
+    const allowed = new Set(exportableFiltered.map((r) => r.id));
     setSelectedIds((prev) => {
       const next = new Set<string>();
       prev.forEach((id) => {
@@ -88,23 +94,25 @@ export function DashboardClients({
       });
       return next;
     });
-  }, [filtered]);
+  }, [exportableFiltered]);
 
   const allVisibleSelected =
-    filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id));
+    exportableFiltered.length > 0 &&
+    exportableFiltered.every((r) => selectedIds.has(r.id));
 
   const toggleSelectAllVisible = useCallback(() => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      const vis = filtered.map((r) => r.id);
+      const vis = exportableFiltered.map((r) => r.id);
       const allSel = vis.length > 0 && vis.every((id) => next.has(id));
       if (allSel) vis.forEach((id) => next.delete(id));
       else vis.forEach((id) => next.add(id));
       return next;
     });
-  }, [filtered]);
+  }, [exportableFiltered]);
 
-  const toggleOne = useCallback((id: string) => {
+  const toggleOne = useCallback((id: string, exported: boolean) => {
+    if (exported) return;
     setSelectedIds((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
@@ -114,8 +122,8 @@ export function DashboardClients({
   }, []);
 
   const selectAllFiltered = useCallback(() => {
-    setSelectedIds(new Set(filtered.map((r) => r.id)));
-  }, [filtered]);
+    setSelectedIds(new Set(exportableFiltered.map((r) => r.id)));
+  }, [exportableFiltered]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -220,7 +228,7 @@ export function DashboardClients({
         <div className="flex flex-col gap-2 rounded-md border bg-muted/30 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           <p className="text-sm text-muted-foreground">
             Exportá solo los clientes seleccionados (respeta filtros y búsqueda). Se marca la fecha de
-            exportación en cada uno.
+            exportación en cada uno y quedan bloqueados para edición.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" disabled={filtered.length === 0} onClick={selectAllFiltered}>
@@ -280,12 +288,22 @@ export function DashboardClients({
               </TableRow>
             ) : (
               filtered.map((r) => {
-                const exported = Boolean(r.exported_at);
+                const exported = isClienteExportado(r.exported_at);
                 const aceptadoExportado =
                   (r.status ?? "") === "aceptado" && exported;
-                const openDetail = () => router.push(`/cliente/${r.id}`);
+                const openDetail = () => {
+                  if (!exported) router.push(`/cliente/${r.id}`);
+                };
                 return (
-                  <TableRow key={r.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableRow
+                    key={r.id}
+                    className={
+                      exported
+                        ? "bg-muted/40 text-muted-foreground"
+                        : "cursor-pointer hover:bg-muted/50"
+                    }
+                    aria-disabled={exported}
+                  >
                     {canExportCsv ? (
                       <TableCell
                         className="w-10 p-2 align-middle"
@@ -295,7 +313,8 @@ export function DashboardClients({
                           type="checkbox"
                           className="h-4 w-4 accent-primary"
                           checked={selectedIds.has(r.id)}
-                          onChange={() => toggleOne(r.id)}
+                          onChange={() => toggleOne(r.id, exported)}
+                          disabled={exported}
                           aria-label={`Seleccionar ${r.nombre}`}
                         />
                       </TableCell>
@@ -333,10 +352,12 @@ export function DashboardClients({
                     <TableCell className="text-sm text-muted-foreground" onClick={openDetail}>
                       {fmtDate(r.last_activity_at)}
                     </TableCell>
-                    <TableCell className="text-sm align-top" onClick={openDetail}>
+                    <TableCell className="text-sm align-top">
                       {exported ? (
                         <div className="space-y-0.5">
-                          <span className="font-medium text-emerald-700 dark:text-emerald-400">Sí</span>
+                          <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-100">
+                            Exportado
+                          </span>
                           <span className="block text-xs text-muted-foreground">{fmtDate(r.exported_at)}</span>
                           {aceptadoExportado ? (
                             <span className="inline-flex rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-900 dark:border-violet-700 dark:bg-violet-950/50 dark:text-violet-100">
@@ -357,7 +378,7 @@ export function DashboardClients({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Tip: hacé clic en una fila para abrir el detalle del cliente.{" "}
+        Tip: hacé clic en una fila para abrir el detalle del cliente. Los exportados quedan bloqueados.{" "}
         {canExportCsv ? "Usá la casilla para seleccionar sin abrir el detalle." : null}
       </p>
     </div>

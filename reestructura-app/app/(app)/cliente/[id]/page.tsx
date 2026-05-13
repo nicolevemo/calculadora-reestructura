@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ClienteWorkspace } from "@/components/cliente/cliente-workspace";
 import { STATUS_ORDER } from "@/lib/constants";
+import { isClienteExportado } from "@/lib/cliente-export";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { createClient } from "@/lib/supabase/server";
 import type { CallStatus } from "@/lib/types";
@@ -50,12 +51,15 @@ export default async function ClientePage({ params }: { params: { id: string } }
   const { data: neg, error: e2 } = await supabase
     .from("negociaciones")
     .select(
-      "id, cliente_id, status, intentos, pago_intencion, fecha_compromiso, motivo_rechazo, notes, updated_at, bono_pronto_pago"
+      "id, cliente_id, status, intentos, pago_intencion, fecha_compromiso, motivo_rechazo, notes, updated_at, bono_pronto_pago, exported_at"
     )
     .eq("cliente_id", id)
     .maybeSingle();
 
   if (e2 || !neg || !isCallStatus(neg.status as string)) notFound();
+  if (isClienteExportado(neg.exported_at as string | null)) {
+    redirect("/dashboard");
+  }
 
   const negociacion = {
     id: neg.id as string,

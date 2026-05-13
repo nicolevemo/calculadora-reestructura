@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { STATUS_ORDER } from "@/lib/constants";
+import { isClienteExportado } from "@/lib/cliente-export";
 import { exportDashboardRowsToCsv } from "@/lib/export-csv";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { getSessionProfile } from "@/lib/session-profile";
@@ -178,6 +179,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "No se encontraron clientes para los ids indicados." },
         { status: 404 }
+      );
+    }
+
+    const alreadyExported = rows.filter((row) => isClienteExportado(row.exported_at));
+    if (alreadyExported.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Uno o más clientes seleccionados ya fueron exportados y no pueden volver a exportarse.",
+        },
+        { status: 409 }
       );
     }
 

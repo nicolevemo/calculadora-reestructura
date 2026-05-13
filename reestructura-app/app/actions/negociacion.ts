@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { calculate } from "@/lib/calculator";
+import { isClienteExportado } from "@/lib/cliente-export";
 import { RULES } from "@/lib/constants";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { createClient } from "@/lib/supabase/server";
@@ -89,12 +90,19 @@ export async function saveNegociacion(
 
     const { data: existing, error: ne } = await supabase
       .from("negociaciones")
-      .select("id, status, intentos, cliente_id")
+      .select("id, status, intentos, cliente_id, exported_at")
       .eq("id", input.negociacionId)
       .single();
 
     if (ne || !existing || existing.cliente_id !== input.clienteId) {
       return { ok: false, error: "Negociación no encontrada" };
+    }
+
+    if (isClienteExportado(existing.exported_at as string | null)) {
+      return {
+        ok: false,
+        error: "Este cliente ya fue exportado a cartera y no admite cambios.",
+      };
     }
 
     const ci = toClientInput(cliente);
