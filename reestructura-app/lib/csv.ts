@@ -1,0 +1,346 @@
+import { z } from "zod";
+
+/** Encabezados obligatorios (post-normalizar) en el CSV */
+export const CSV_REQUIRED_HEADERS = [
+  "af",
+  "nombre",
+  "adeudo",
+  "semana",
+  "plazo_remanente",
+] as const;
+
+export type CsvRequiredHeader = (typeof CSV_REQUIRED_HEADERS)[number];
+
+/** Fila lista para insertar en `clientes` (sin upload_id). */
+export type ClienteCsvInsert = {
+  af: string;
+  nombre: string;
+  telefono: string | null;
+  vehiculo: string | null;
+  plataforma: string | null;
+  bucket: string | null;
+  origination_date: string | null;
+  plazo_remanente: number;
+  adeudo: number;
+  semana: number;
+  pago_en_dia: boolean;
+  monto_pago_dia: number;
+  api_uber: boolean;
+  api_didi: boolean;
+  ingresos_api: number | null;
+  viajes_api: number | null;
+  ci: string | null;
+  energia_adicional: number | null;
+};
+
+export function normalizeHeaderKey(raw: string): string {
+  return raw
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+const HEADER_ALIASES: Record<string, string> = {
+  cuenta: "af",
+  af_cliente: "af",
+  saldo_vencido: "adeudo",
+  renta_semana: "semana",
+  renta: "semana",
+  semanas_restantes: "plazo_remanente",
+  plazo: "plazo_remanente",
+  numero_de_telefono: "telefono",
+  numerodetelefono: "telefono",
+  net_earnings: "ingresos_api",
+  trips: "viajes_api",
+};
+
+export function mapHeaderAlias(key: string): string {
+  return HEADER_ALIASES[key] ?? key;
+}
+
+export function parseSiNo(value: string | undefined | null): boolean {
+  if (value == null) return false;
+  const v = value.trim().toUpperCase();
+  if (v === "SI" || v === "SÍ" || v === "1" || v === "TRUE" || v === "YES") return true;
+  if (v === "NO" || v === "0" || v === "FALSE" || v === "") return false;
+  return false;
+}
+
+export function parseDecimal(value: string | undefined | null, field: string): number {
+  if (value == null || !String(value).trim()) {
+    throw new Error(`${field}: vacío`);
+  }
+  let s = String(value).replace(/\s/g, "").trim();
+
+  // Europeo: 1.234,56
+  if (/^\d{1,3}(\.\d{3})*,\d+$/.test(s)) {
+    s = s.replace(/\./g, "").replace(",", ".");
+    const n = Number(s);
+    if (!Number.isFinite(n)) {
+      throw new Error(`${field}: no es un número válido (${value})`);
+    }
+    return n;
+  }
+
+  // Excel ES/LATAM: puntos como miles (44.809 → 44809)
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    const n = parseInt(s.replace(/\./g, ""), 10);
+    if (!Number.isFinite(n)) {
+      throw new Error(`${field}: no es un número válido (${value})`);
+    }
+    return n;
+  }
+
+  const cleaned = s.replace(/,/g, "");
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) {
+    throw new Error(`${field}: no es un número válido (${value})`);
+  }
+  return n;
+}
+
+export function parseOptionalDecimal(
+  value: string | undefined | null
+): number | null {
+  if (value == null || !String(value).trim()) return null;
+  let s = String(value).replace(/\s/g, "").trim();
+
+  if (/^\d{1,3}(\.\d{3})*,\d+$/.test(s)) {
+    s = s.replace(/\./g, "").replace(",", ".");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    const n = parseInt(s.replace(/\./g, ""), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  const cleaned = s.replace(/,/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function parseOptionalInt(value: string | undefined | null): number | null {
+  if (value == null || !String(value).trim()) return null;
+  let s = String(value).replace(/\s/g, "").trim();
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    const n = parseInt(s.replace(/\./g, ""), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  const n = parseInt(s.replace(/,/g, "").trim(), 10);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+/** Detecta `;` vs `,` según la primera fila con encabezados. */
+export function guessCsvDelimiter(line: string): string {
+  const sc = (line.match(/;/g) ?? []).length;
+  const cc = (line.match(/,/g) ?? []).length;
+  if (sc === 0 && cc === 0) return ",";
+  return sc > cc ? ";" : ",";
+}
+
+/** Primera fila que parece encabezado (tiene af + nombre). Salta filas vacías de Excel. */
+export function findCsvHeaderLineIndex(lines: string[]): number {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]?.trim() ?? "";
+    if (!line) continue;
+    const delim = guessCsvDelimiter(line);
+    const parts = line.split(delim).map((c) => mapHeaderAlias(normalizeHeaderKey(c.trim())));
+    if (parts.includes("af") && parts.includes("nombre")) return i;
+  }
+  return 0;
+}
+
+/** Quita filas previas al encabezado real y fija el delimitador para Papa Parse. */
+export function prepareCsvForPapa(raw: string): { text: string; delimiter: string } {
+  const normalized = raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+  const idx = findCsvHeaderLineIndex(lines);
+  const headerLine = lines[idx] ?? "";
+  const delimiter = guessCsvDelimiter(headerLine);
+  const text = lines.slice(idx).join("\n");
+  return { text, delimiter };
+}
+
+/** Devuelve YYYY-MM-DD o null. Acepta ISO o DD/MM/YYYY. */
+export function parseOriginationDate(value: string | undefined | null): string | null {
+  if (value == null || !String(value).trim()) return null;
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.slice(0, 10);
+  }
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const d = m[1].padStart(2, "0");
+    const mo = m[2].padStart(2, "0");
+    const y = m[3];
+    return `${y}-${mo}-${d}`;
+  }
+  return null;
+}
+
+const clienteInsertSchema = z.object({
+  af: z.string().min(1).max(120),
+  nombre: z.string().min(1).max(500),
+  telefono: z.string().max(80).nullable(),
+  vehiculo: z.string().max(200).nullable(),
+  plataforma: z.string().max(120).nullable(),
+  bucket: z.string().max(120).nullable(),
+  origination_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]),
+  plazo_remanente: z.number().int().positive().max(520),
+  adeudo: z.number().finite().nonnegative(),
+  semana: z.number().finite().nonnegative(),
+  pago_en_dia: z.boolean(),
+  monto_pago_dia: z.number().finite().nonnegative(),
+  api_uber: z.boolean(),
+  api_didi: z.boolean(),
+  ingresos_api: z.number().finite().nullable(),
+  viajes_api: z.number().int().nonnegative().nullable(),
+  ci: z.string().max(120).nullable(),
+  energia_adicional: z.number().finite().nullable(),
+});
+
+export function recordToClienteInsert(
+  row: Record<string, string>,
+  rowIndex1Based: number
+): { ok: true; data: ClienteCsvInsert } | { ok: false; error: string } {
+  try {
+    const g = (k: string) => row[k]?.trim() ?? "";
+
+    const af = g("af");
+    const nombre = g("nombre");
+    const adeudo = parseDecimal(row.adeudo, "adeudo");
+    const semana = parseDecimal(row.semana, "semana");
+    const plazoRaw = row.plazo_remanente;
+    const plazo = parseOptionalInt(String(plazoRaw ?? ""));
+    if (plazo == null || plazo <= 0) {
+      throw new Error("plazo_remanente debe ser un entero > 0");
+    }
+
+    const plat = g("plataforma").toLowerCase();
+    const api_uber = parseSiNo(row.api_uber) || plat.includes("uber");
+    const api_didi = parseSiNo(row.api_didi) || plat.includes("didi");
+
+    const raw: ClienteCsvInsert = {
+      af,
+      nombre,
+      telefono: (() => {
+        const t = g("telefono").replace(/\s+/g, "");
+        return t || null;
+      })(),
+      vehiculo: g("vehiculo") || null,
+      plataforma: g("plataforma") || null,
+      bucket: g("bucket") || null,
+      origination_date: parseOriginationDate(row.origination_date),
+      plazo_remanente: plazo,
+      adeudo,
+      semana,
+      pago_en_dia: parseSiNo(row.pago_en_dia),
+      monto_pago_dia: parseOptionalDecimal(row.monto_pago_dia) ?? 0,
+      api_uber,
+      api_didi,
+      ingresos_api: parseOptionalDecimal(row.ingresos_api),
+      viajes_api: parseOptionalInt(row.viajes_api),
+      ci: g("ci") || null,
+      energia_adicional: parseOptionalDecimal(row.energia_adicional),
+    };
+
+    const parsed = clienteInsertSchema.safeParse(raw);
+    if (!parsed.success) {
+      const msg = parsed.error.errors.map((e) => e.message).join("; ");
+      return { ok: false, error: `Fila ${rowIndex1Based}: ${msg}` };
+    }
+    return { ok: true, data: parsed.data };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Fila ${rowIndex1Based}: ${msg}` };
+  }
+}
+
+export function validateCsvHeaders(fields: string[] | undefined): string | null {
+  if (!fields?.length) {
+    return "El CSV no tiene fila de encabezados o está vacío.";
+  }
+  const normalized = fields.map((f) => mapHeaderAlias(normalizeHeaderKey(f)));
+  const set = new Set(normalized);
+  for (const req of CSV_REQUIRED_HEADERS) {
+    if (!set.has(req)) {
+      return `Falta la columna obligatoria: "${req}". Columnas detectadas: ${normalized.join(", ")}`;
+    }
+  }
+  return null;
+}
+
+/** Renombra claves de cada fila según alias (después de normalizar encabezados Papa). */
+export function normalizeRowKeys(row: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(row)) {
+    const canon = mapHeaderAlias(normalizeHeaderKey(k));
+    if (out[canon] === undefined) {
+      out[canon] = v ?? "";
+    }
+  }
+  return out;
+}
+
+export type CsvValidationResult =
+  | { ok: true; rows: ClienteCsvInsert[] }
+  | { ok: false; errors: string[] };
+
+export function validateCsvRows(
+  rawRows: Record<string, string>[]
+): CsvValidationResult {
+  const nonEmpty = rawRows.filter((raw) => {
+    const row = normalizeRowKeys(raw);
+    return Object.values(row).some((v) => String(v).trim() !== "");
+  });
+
+  if (!nonEmpty.length) {
+    return { ok: false, errors: ["No hay filas de datos en el CSV."] };
+  }
+  const errors: string[] = [];
+  const rows: ClienteCsvInsert[] = [];
+  const maxErrors = 25;
+
+  nonEmpty.forEach((raw, i) => {
+    if (errors.length >= maxErrors) return;
+    const row = normalizeRowKeys(raw);
+    const r = recordToClienteInsert(row, i + 2);
+    if (!r.ok) errors.push(r.error);
+    else rows.push(r.data);
+  });
+
+  if (errors.length) {
+    return { ok: false, errors };
+  }
+  return { ok: true, rows };
+}
+
+export const uploadPayloadSchema = z.object({
+  filename: z.string().min(1).max(512),
+  week_of: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
+  notes: z.string().max(4000).optional().nullable(),
+  rows: z.array(z.record(z.unknown())).min(1).max(5000),
+});
+
+export function coerceRowsToStrings(
+  rows: Record<string, unknown>[]
+): Record<string, string>[] {
+  return rows.map((row) => {
+    const o: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) {
+      o[String(k)] = v == null ? "" : String(v);
+    }
+    return o;
+  });
+}

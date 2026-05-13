@@ -1,0 +1,14 @@
+.DS_Store
+*.pem
+*.tsbuildinfo
+
+# Next.js app
+reestructura-app/node_modules/
+reestructura-app/.next/
+reestructura-app/out/
+reestructura-app/build/
+reestructura-app/.vercel/
+reestructura-app/.env*.local
+reestructura-app/npm-debug.log*
+reestructura-app/yarn-debug.log*
+reestructura-app/yarn-error.log*
