@@ -2,13 +2,16 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
+import { resolveRequestOrigin } from "@/lib/request-origin";
+
 /**
  * Callback dedicado a invitación y recuperación de contraseña.
  * Supabase al agregar `code` a veces no conserva query params extra (`next=`);
  * esta ruta evita eso y siempre manda a definir contraseña.
  */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const origin = resolveRequestOrigin(request);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
 
   if (!code) {

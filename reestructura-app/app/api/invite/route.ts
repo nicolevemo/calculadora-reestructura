@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { isDevAuthBypass } from "@/lib/dev-auth-bypass";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getConfiguredAppOrigin } from "@/lib/request-origin";
 import type { UserRole } from "@/lib/types";
 
 const inviteBodySchema = z.object({
@@ -20,9 +21,7 @@ function normalizeEmail(email: string) {
 function resolveAppOrigin(request: Request) {
   const fromHeader = request.headers.get("origin")?.trim();
   if (fromHeader?.startsWith("http")) return fromHeader.replace(/\/$/, "");
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (fromEnv?.startsWith("http")) return fromEnv.replace(/\/$/, "");
-  return null;
+  return getConfiguredAppOrigin();
 }
 
 async function getCaller() {
