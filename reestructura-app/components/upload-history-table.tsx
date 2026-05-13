@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { fmtDate, fmtDateTime } from "@/lib/format";
 
 export type UploadHistoryRow = {
   id: string;
@@ -58,16 +59,11 @@ export function UploadHistoryTable({
             <TableRow key={u.id}>
               <TableCell className="max-w-[220px] truncate font-medium">{u.filename}</TableCell>
               <TableCell className="text-muted-foreground">
-                {new Date(u.uploaded_at).toLocaleString("es-MX", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}
+                {fmtDateTime(u.uploaded_at)}
               </TableCell>
               <TableCell className="text-right tabular-nums">{u.client_count ?? "—"}</TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {u.week_of
-                  ? new Date(u.week_of + "T12:00:00").toLocaleDateString("es-MX")
-                  : "—"}
+                {u.week_of ? fmtDate(u.week_of) : "—"}
               </TableCell>
               <TableCell className="capitalize">{u.status}</TableCell>
             </TableRow>

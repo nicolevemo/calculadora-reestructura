@@ -17,25 +17,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { STATUS, STATUS_ORDER } from "@/lib/constants";
+import { fmtDate, fmtMoney } from "@/lib/format";
 import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
 
 type StatusFilter = CallStatus | "all";
-
-function fmtMoney(n: number | null | undefined) {
-  if (n == null || Number.isNaN(Number(n))) return "—";
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    maximumFractionDigits: 0,
-  }).format(Number(n));
-}
-
-function fmtDate(iso: string | null | undefined) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 function fmtApi(u: boolean | null | undefined, d: boolean | null | undefined) {
   const parts: string[] = [];

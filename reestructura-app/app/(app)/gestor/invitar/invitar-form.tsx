@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fmtDateTime } from "@/lib/format";
 import {
   Table,
   TableBody,
@@ -191,7 +192,7 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
                       <TableCell className="capitalize">{inv.role}</TableCell>
                       <TableCell>{inv.full_name ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(inv.invited_at).toLocaleString("es-MX")}
+                        {fmtDateTime(inv.invited_at)}
                       </TableCell>
                       <TableCell>
                         {inv.revoked_at
