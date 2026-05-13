@@ -6,6 +6,7 @@ import {
   validateCsvRows,
 } from "@/lib/csv";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
+import { getSessionProfile } from "@/lib/session-profile";
 import { createClient } from "@/lib/supabase/server";
 
 type AuthGestor =
@@ -41,13 +42,9 @@ async function authorizeGestorUpload(
     };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  const { role } = await getSessionProfile(supabase, user);
 
-  if (profile?.role !== "gestor" && profile?.role !== "admin") {
+  if (role !== "gestor" && role !== "admin") {
     return {
       ok: false,
       response: NextResponse.json(

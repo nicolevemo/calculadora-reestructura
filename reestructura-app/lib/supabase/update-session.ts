@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isDevAuthBypass } from "../dev-auth-bypass";
+import { syncProfileRoleFromInvitation } from "../session-profile";
 
 export async function updateSession(request: NextRequest) {
   if (isDevAuthBypass()) {
@@ -38,6 +39,10 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user) {
+    await syncProfileRoleFromInvitation(supabase);
+  }
 
   const isLogin = request.nextUrl.pathname.startsWith("/login");
   const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");

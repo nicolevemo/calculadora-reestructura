@@ -4,6 +4,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { z } from "zod";
 
 import { isDevAuthBypass } from "@/lib/dev-auth-bypass";
+import { syncProfileRoleFromInvitation } from "@/lib/session-profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getConfiguredAppOrigin } from "@/lib/request-origin";
 import type { UserRole } from "@/lib/types";
@@ -54,6 +55,8 @@ async function getCaller() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
+
+  await syncProfileRoleFromInvitation(supabase);
 
   const { data: profile } = await supabase
     .from("profiles")

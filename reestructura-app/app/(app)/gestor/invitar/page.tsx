@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { isDevAuthBypass } from "@/lib/dev-auth-bypass";
+import { getSessionProfile } from "@/lib/session-profile";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/types";
 
@@ -16,13 +17,8 @@ export default async function InvitarPage() {
     } = await supabase.auth.getUser();
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    callerRole = (profile?.role as UserRole | undefined) ?? "agente";
+    const sessionProfile = await getSessionProfile(supabase, user);
+    callerRole = sessionProfile.role;
   }
 
   return (

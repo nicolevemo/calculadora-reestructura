@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { DevAuthBanner } from "@/components/dev-auth-banner";
 import { Sidebar } from "@/components/sidebar";
 import { DEV_AUTH_MOCK, isDevAuthBypass } from "@/lib/dev-auth-bypass";
+import { getSessionProfile } from "@/lib/session-profile";
 import { createClient } from "@/lib/supabase/server";
-import type { UserRole } from "@/lib/types";
 
 export default async function AppLayout({
   children,
@@ -29,14 +29,7 @@ export default async function AppLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, role")
-    .eq("id", user.id)
-    .single();
-
-  const fullName = profile?.full_name?.trim() || user.email || "Usuario";
-  const role = (profile?.role as UserRole | undefined) ?? "agente";
+  const { fullName, role } = await getSessionProfile(supabase, user);
 
   return (
     <div className="flex min-h-screen">

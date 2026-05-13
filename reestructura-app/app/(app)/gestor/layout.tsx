@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { isDevAuthBypass } from "@/lib/dev-auth-bypass";
+import { getSessionProfile } from "@/lib/session-profile";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/types";
 
@@ -19,13 +20,7 @@ export default async function GestorSectionLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = (profile?.role as UserRole | undefined) ?? "agente";
+  const { role } = await getSessionProfile(supabase, user);
   if (role !== "gestor" && role !== "admin") {
     redirect("/dashboard");
   }
