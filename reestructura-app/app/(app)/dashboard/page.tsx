@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { DashboardClients } from "@/components/dashboard-clients";
+import { listAssignableAgents } from "@/lib/assignable-agents";
 import {
   DEV_AUTH_MOCK,
   isDevAuthBypass,
@@ -18,6 +19,7 @@ export default async function DashboardPage() {
   const supabase = createClient();
   let fullName = "";
   let role: UserRole = "agente";
+  let currentUserId: string | null = null;
 
   if (isDevAuthBypass()) {
     fullName = DEV_AUTH_MOCK.fullName;
@@ -28,14 +30,18 @@ export default async function DashboardPage() {
     } = await supabase.auth.getUser();
     if (!user) redirect("/login");
 
+    currentUserId = user.id;
     const sessionProfile = await getSessionProfile(supabase, user);
     fullName = sessionProfile.fullName;
     role = sessionProfile.role;
   }
 
+  const canAssign = role === "gestor" || role === "admin";
+
   const canRead = !isDevAuthBypass() || isDevServerDataOverride();
   let rows: ClienteDashboardRow[] = [];
   let loadError: string | null = null;
+  let assignableAgents: Awaited<ReturnType<typeof listAssignableAgents>> = [];
 
   if (canRead) {
     const { data, error } = await supabase
@@ -45,6 +51,12 @@ export default async function DashboardPage() {
 
     if (error) loadError = error.message;
     else rows = (data ?? []) as ClienteDashboardRow[];
+
+    try {
+      assignableAgents = await listAssignableAgents(supabase);
+    } catch (e) {
+      console.error("[dashboard] assignable agents", e);
+    }
   }
 
   const greeting = (
@@ -101,6 +113,9 @@ export default async function DashboardPage() {
         rows={canRead ? rows : []}
         showGestorHint={false}
         canExportCsv={role === "gestor" || role === "admin"}
+        assignableAgents={assignableAgents}
+        canAssign={canAssign}
+        currentUserId={currentUserId}
       />
     </div>
   );

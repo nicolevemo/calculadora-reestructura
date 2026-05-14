@@ -22,7 +22,7 @@ type PostCondonacion = Pick<CalculatorResult, "condonacion" | "remanente">;
 
 type Schedule = Pick<
   CalculatorResult,
-  "cccTeorico" | "indicativoSemanal" | "incrementoSemanal" | "balloon" | "nuevaSemanalidad"
+  "cscTeorico" | "indicativoSemanal" | "cscAplicado" | "balloon" | "nuevaSemanalidad"
 >;
 
 function resolveBalances(client: CalculatorClientInput): Balances {
@@ -67,15 +67,15 @@ function resolveSchedule(
   plazoRemanente: number,
   semanalidadActual: number
 ): Schedule {
-  const cccTeorico = remanente / plazoRemanente;
-  const incrementoSemanal = Math.min(RULES.TOPE_INCREMENTAL_RENTA, cccTeorico);
-  const balloon = Math.max(0, (cccTeorico - incrementoSemanal) * plazoRemanente);
-  const nuevaSemanalidad = semanalidadActual + incrementoSemanal;
+  const cscTeorico = remanente / plazoRemanente;
+  const cscAplicado = Math.min(RULES.TOPE_INCREMENTAL_RENTA, cscTeorico);
+  const balloon = Math.max(0, (cscTeorico - cscAplicado) * plazoRemanente);
+  const nuevaSemanalidad = semanalidadActual + cscAplicado;
 
   return {
-    cccTeorico,
-    indicativoSemanal: cccTeorico,
-    incrementoSemanal,
+    cscTeorico,
+    indicativoSemanal: cscTeorico,
+    cscAplicado,
     balloon,
     nuevaSemanalidad,
   };

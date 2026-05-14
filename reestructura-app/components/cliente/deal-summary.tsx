@@ -61,20 +61,23 @@ const detailRows: {
     CalculatorResult,
     | "totalAdeudo"
     | "saldoAReestructurar"
+    | "pagoIntencion"
     | "condonacion"
     | "remanente"
-    | "cccTeorico"
-    | "incrementoSemanal"
+    | "cscTeorico"
+    | "cscAplicado"
     | "balloon"
   >;
   label: string;
+  informative?: boolean;
 }[] = [
-  { key: "totalAdeudo", label: "Total de adeudo" },
-  { key: "saldoAReestructurar", label: "Base de reestructura" },
+  { key: "totalAdeudo", label: "Saldo total" },
+  { key: "saldoAReestructurar", label: "Saldo a regularizar" },
+  { key: "pagoIntencion", label: "Pago de intención" },
   { key: "condonacion", label: "Condonación" },
   { key: "remanente", label: "Deuda post-condonación" },
-  { key: "cccTeorico", label: "CCC teórico (remanente / semanas)" },
-  { key: "incrementoSemanal", label: "CCC aplicado (tope $200/sem)" },
+  { key: "cscTeorico", label: "CSC teórico", informative: true },
+  { key: "cscAplicado", label: "CSC aplicado" },
   { key: "balloon", label: "Balloon (última semana)" },
 ];
 
@@ -89,6 +92,8 @@ const toneClass: Record<(typeof visibleRows)[number]["tone"], string> = {
 };
 
 export function DealSummaryHighlights({ calc }: { calc: CalculatorResult }) {
+  const highlightRows = visibleRows.filter((row) => row.tone !== "neutral");
+
   return (
     <section className="space-y-4">
       <div className="space-y-1">
@@ -96,8 +101,8 @@ export function DealSummaryHighlights({ calc }: { calc: CalculatorResult }) {
         <p className="text-sm leading-snug text-muted-foreground">{CALCULATOR_COPY.pagoUnicoHoy}</p>
       </div>
 
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        {visibleRows.map(({ label, value, hint, tone }) => (
+      <div className="grid min-w-0 gap-3 sm:grid-cols-1">
+        {highlightRows.map(({ label, value, hint, tone }) => (
           <article
             key={label}
             className={cn("min-w-0 rounded-lg border p-3 shadow-sm", toneClass[tone])}
@@ -137,19 +142,21 @@ export type ClientePlataformaCsvInfoProps = {
   plataforma: string | null;
   ingresos_api: number | null;
   viajes_api: number | null;
+  originacion_vehiculo: string | null;
 };
 
 export function ClientePlataformaCsvInfo({
   plataforma,
   ingresos_api,
   viajes_api,
+  originacion_vehiculo,
 }: ClientePlataformaCsvInfoProps) {
   return (
     <section className="rounded-lg border border-border/70 bg-muted/35 p-4 shadow-sm dark:bg-muted/25">
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Datos de plataforma
       </p>
-      <dl className="grid gap-3 sm:grid-cols-3">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-xs text-muted-foreground">Plataforma</dt>
           <dd className="mt-1 text-sm font-semibold text-foreground">{plataforma ?? "—"}</dd>
@@ -164,6 +171,12 @@ export function ClientePlataformaCsvInfo({
           <dt className="text-xs text-muted-foreground">Viajes</dt>
           <dd className="mt-1 text-sm font-semibold tabular-nums text-foreground">
             {viajes_api != null ? viajes_api : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Originación</dt>
+          <dd className="mt-1 text-sm font-semibold text-foreground">
+            {originacion_vehiculo ?? "—"}
           </dd>
         </div>
       </dl>
@@ -183,10 +196,30 @@ export function DealCalculatorDetail({
       </p>
       <table className="w-full text-sm">
         <tbody>
-          {detailRows.map(({ key, label }) => (
-            <tr key={key} className="border-b border-border/60 last:border-0">
-              <td className="py-2 pr-2 align-top text-sm leading-snug text-foreground">{label}</td>
-              <td className="py-2 pl-2 text-right text-sm tabular-nums font-semibold text-violet-700 dark:text-violet-300">
+          {detailRows.map(({ key, label, informative }) => (
+            <tr
+              key={key}
+              className={cn(
+                "border-b border-border/60 last:border-0",
+                informative && "bg-muted/25"
+              )}
+            >
+              <td
+                className={cn(
+                  "py-2 pr-2 align-top text-sm leading-snug",
+                  informative ? "text-muted-foreground/80" : "text-foreground"
+                )}
+              >
+                {label}
+              </td>
+              <td
+                className={cn(
+                  "py-2 pl-2 text-right text-sm tabular-nums",
+                  informative
+                    ? "font-medium text-muted-foreground/70"
+                    : "font-semibold text-violet-700 dark:text-violet-300"
+                )}
+              >
                 {mx(calc[key])}
               </td>
             </tr>

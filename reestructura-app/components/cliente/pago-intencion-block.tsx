@@ -21,6 +21,7 @@ type Props = {
   min: number;
   max: number;
   initialPago: number | null;
+  currentAmount: number;
   onAmountChange: (n: number) => void;
   isValid: boolean;
   isBelowMin: boolean;
@@ -39,11 +40,16 @@ function isPresetInRange(amount: number, min: number, max: number) {
   return amount >= min && amount <= max;
 }
 
+function amountMatchesPreset(currentAmount: number, preset: number) {
+  return Math.round(currentAmount) === Math.round(preset);
+}
+
 export function PagoIntencionBlock({
   negociacionId,
   min,
   max,
   initialPago,
+  currentAmount,
   onAmountChange,
   isValid,
   isBelowMin,
@@ -99,38 +105,74 @@ export function PagoIntencionBlock({
         </p>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="fecha-compromiso" className="text-sm font-medium text-foreground">
+          Fecha de compromiso del pago
+        </Label>
+        <Input
+          id="fecha-compromiso"
+          type="date"
+          value={fechaCompromiso}
+          onChange={(e) => onFechaCompromisoChange(e.target.value)}
+          className="h-9 text-sm"
+        />
+        <p className="text-sm leading-snug text-muted-foreground">
+          Obligatoria si el estado es Aceptado o En negociación.
+        </p>
+      </div>
+
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={() => applyAmount(min)}>
-          Mínimo
-        </Button>
-        {QUICK_AMOUNTS.map((amount) => (
-          <Button
-            key={amount}
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={!isPresetInRange(amount, min, max)}
-            title={
-              !isPresetInRange(amount, min, max)
-                ? `No aplica para este cliente (rango ${formatMx(min)}–${formatMx(max)})`
-                : undefined
-            }
-            onClick={() => applyAmount(amount)}
-          >
-            {formatMx(amount)}
-          </Button>
-        ))}
         <Button
           type="button"
           size="sm"
-          variant="default"
-          className="font-medium"
+          variant={amountMatchesPreset(currentAmount, min) ? "default" : "outline"}
+          className={cn(
+            amountMatchesPreset(currentAmount, min) &&
+              "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          )}
+          onClick={() => applyAmount(min)}
+        >
+          Mínimo
+        </Button>
+        {QUICK_AMOUNTS.map((amount) => {
+          const inRange = isPresetInRange(amount, min, max);
+          const selected = inRange && amountMatchesPreset(currentAmount, amount);
+          return (
+            <Button
+              key={amount}
+              type="button"
+              size="sm"
+              variant={selected ? "default" : "outline"}
+              disabled={!inRange}
+              className={cn(
+                selected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+              )}
+              title={
+                !inRange
+                  ? `No aplica para este cliente (rango ${formatMx(min)}–${formatMx(max)})`
+                  : undefined
+              }
+              onClick={() => applyAmount(amount)}
+            >
+              {formatMx(amount)}
+            </Button>
+          );
+        })}
+        <Button
+          type="button"
+          size="sm"
+          variant={amountMatchesPreset(currentAmount, max) ? "default" : "outline"}
+          className={cn(
+            amountMatchesPreset(currentAmount, max) &&
+              "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          )}
           title={`Máximo permitido para este cliente: ${formatMx(max)}`}
           onClick={() => applyAmount(max)}
         >
           Máximo
         </Button>
       </div>
+
 
       <div className="space-y-2">
         <Label htmlFor="pago-intencion" className="text-sm font-medium text-foreground">
@@ -182,21 +224,6 @@ export function PagoIntencionBlock({
         )}
       </div>
 
-      <div className="mt-auto space-y-2 border-t border-border pt-4">
-        <Label htmlFor="fecha-compromiso" className="text-sm font-medium text-foreground">
-          Fecha de compromiso del pago
-        </Label>
-        <Input
-          id="fecha-compromiso"
-          type="date"
-          value={fechaCompromiso}
-          onChange={(e) => onFechaCompromisoChange(e.target.value)}
-          className="h-9 text-sm"
-        />
-        <p className="text-sm leading-snug text-muted-foreground">
-          Obligatoria si el estado es Aceptado o En negociación.
-        </p>
-      </div>
     </div>
   );
 }

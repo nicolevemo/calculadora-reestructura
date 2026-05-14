@@ -32,6 +32,9 @@ type InviteRow = {
   invited_at: string;
   accepted_at: string | null;
   revoked_at: string | null;
+  in_platform?: boolean;
+  profile_id?: string | null;
+  profile_created_at?: string | null;
 };
 
 export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
@@ -175,13 +178,14 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
                   <TableHead>Rol</TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Invitado</TableHead>
+                  <TableHead>En plataforma</TableHead>
                   <TableHead>Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invites.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground">
+                    <TableCell colSpan={6} className="text-muted-foreground">
                       No hay invitaciones para mostrar.
                     </TableCell>
                   </TableRow>
@@ -193,6 +197,20 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
                       <TableCell>{inv.full_name ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {fmtDateTime(inv.invited_at)}
+                      </TableCell>
+                      <TableCell>
+                        {inv.in_platform ? (
+                          <span className="text-emerald-700">
+                            Sí
+                            {inv.profile_created_at ? (
+                              <span className="block text-xs text-muted-foreground">
+                                {fmtDateTime(inv.profile_created_at)}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">No</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {inv.revoked_at

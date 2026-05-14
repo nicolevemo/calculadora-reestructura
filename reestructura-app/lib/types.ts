@@ -51,12 +51,12 @@ export interface CalculatorResult {
   condonacion: number;
   /** Deuda post-condonación para amortizar (remanente). */
   remanente: number;
-  /** CCC teórico = remanente / plazo. */
-  cccTeorico: number;
-  /** Alias histórico de `cccTeorico`. */
+  /** CSC teórico = remanente / plazo. */
+  cscTeorico: number;
+  /** Alias histórico de `cscTeorico`. */
   indicativoSemanal: number;
-  /** CCC aplicado (tope $200/sem). */
-  incrementoSemanal: number;
+  /** CSC aplicado (tope $200/sem). */
+  cscAplicado: number;
   balloon: number;
   nuevaSemanalidad: number;
   /** Monto del bono aplicado en simulación (0 o RULES.BONO_PRONTO_PAGO). */
@@ -81,6 +81,8 @@ export interface ClienteDashboardRow {
   plazo_remanente: number;
   adeudo: number;
   semana: number;
+  semana_siguiente: number;
+  originacion_vehiculo: string | null;
   pago_en_dia: boolean | null;
   monto_pago_dia: number | null;
   api_uber: boolean | null;

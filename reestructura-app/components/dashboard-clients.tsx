@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AssigneeSelect } from "@/components/assignee-select";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,12 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { AssignableAgent } from "@/lib/assignable-agents";
 import { STATUS, STATUS_ORDER } from "@/lib/constants";
 import { isClienteExportado } from "@/lib/cliente-export";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
 
 type StatusFilter = CallStatus | "all";
+type AssignFilter = "all" | "unassigned" | "mine";
 
 function fmtApi(u: boolean | null | undefined, d: boolean | null | undefined) {
   const parts: string[] = [];
@@ -35,19 +38,29 @@ export function DashboardClients({
   rows,
   showGestorHint,
   canExportCsv = false,
+  assignableAgents = [],
+  canAssign = false,
+  currentUserId = null,
 }: {
   greeting: React.ReactNode;
   rows: ClienteDashboardRow[];
   showGestorHint?: boolean;
   /** Gestor/admin: selección + export POST que marca `exported_at` */
   canExportCsv?: boolean;
+  assignableAgents?: AssignableAgent[];
+  canAssign?: boolean;
+  currentUserId?: string | null;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [assignFilter, setAssignFilter] = useState<AssignFilter>(() =>
+    canAssign ? "all" : currentUserId ? "mine" : "all"
+  );
   const [q, setQ] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [exportBusy, setExportBusy] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
+  const [assignErr, setAssignErr] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -69,6 +82,11 @@ export function DashboardClients({
     if (status !== "all") {
       r = r.filter((row) => (row.status ?? "listo_contactar") === status);
     }
+    if (assignFilter === "unassigned") {
+      r = r.filter((row) => !row.assigned_to);
+    } else if (assignFilter === "mine" && currentUserId) {
+      r = r.filter((row) => row.assigned_to === currentUserId);
+    }
     const needle = q.trim().toLowerCase();
     if (needle) {
       r = r.filter(
@@ -78,7 +96,7 @@ export function DashboardClients({
       );
     }
     return r;
-  }, [rows, status, q]);
+  }, [rows, status, assignFilter, currentUserId, q]);
 
   const exportableFiltered = useMemo(
     () => filtered.filter((row) => !isClienteExportado(row.exported_at)),
@@ -176,7 +194,13 @@ export function DashboardClients({
   ];
 
   /** Checkbox (solo gestor) + datos + Exportado (todos) */
-  const colSpan = canExportCsv ? 12 : 11;
+  const colSpan = canExportCsv ? 13 : 12;
+
+  const assignFilterButtons: { id: AssignFilter; label: string }[] = [
+    { id: "all", label: "Todos" },
+    { id: "unassigned", label: "Sin asignar" },
+    { id: "mine", label: "Mis clientes" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -223,6 +247,22 @@ export function DashboardClients({
           />
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        {assignFilterButtons.map((button) => (
+          <Button
+            key={button.id}
+            type="button"
+            size="sm"
+            variant={assignFilter === button.id ? "secondary" : "outline"}
+            onClick={() => setAssignFilter(button.id)}
+          >
+            {button.label}
+          </Button>
+        ))}
+      </div>
+
+      {assignErr ? <p className="text-sm text-destructive">{assignErr}</p> : null}
 
       {canExportCsv ? (
         <div className="flex flex-col gap-2 rounded-md border bg-muted/30 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
@@ -272,6 +312,7 @@ export function DashboardClients({
               <TableHead>Bucket</TableHead>
               <TableHead>Plataforma</TableHead>
               <TableHead>API</TableHead>
+              <TableHead>Asignado a</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Compromiso</TableHead>
               <TableHead className="text-right">Pago intención</TableHead>
@@ -339,6 +380,22 @@ export function DashboardClients({
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground" onClick={openDetail}>
                       {fmtApi(r.api_uber, r.api_didi)}
+                    </TableCell>
+                    <TableCell className="min-w-[11rem]" onClick={(e) => e.stopPropagation()}>
+                      {r.negociacion_id ? (
+                        <AssigneeSelect
+                          clienteId={r.id}
+                          negociacionId={r.negociacion_id}
+                          assignedTo={r.assigned_to}
+                          assignedToName={r.assigned_to_name}
+                          agents={assignableAgents}
+                          canAssign={canAssign}
+                          disabled={exported}
+                          onError={setAssignErr}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell onClick={openDetail}>
                       <StatusBadge status={r.status} />

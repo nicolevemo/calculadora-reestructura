@@ -56,7 +56,7 @@ export function ClienteCommsPanel({
       `Te compartimos el resumen de reestructura LTO (AF ${cliente.af}).`,
       `Estado: ${STATUS[status].label}.`,
       ``,
-      `Total de adeudo: ${mx(calc.totalAdeudo)}`,
+      `Saldo total: ${mx(calc.totalAdeudo)}`,
       `Pago total: ${mx(calc.totalPagarHoy)} (${mx(calc.semanalidadActual)} semanalidad + ${mx(calc.pagoIntencion)} intención)`,
       `Semanalidad siguiente: ${mx(calc.semanalidadSiguiente)}`,
       ...(fechaCompromisoLabel
@@ -156,7 +156,7 @@ export function ClienteCommsPanel({
 
       <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">Vista rápida</p>
-        <p className="mt-1 tabular-nums">Base de reestructura: {mx(calc.saldoAReestructurar)}</p>
+        <p className="mt-1 tabular-nums">Saldo a regularizar: {mx(calc.saldoAReestructurar)}</p>
         <p className="tabular-nums">Pago intención: {mx(calc.pagoIntencion)}</p>
       </div>
     </div>

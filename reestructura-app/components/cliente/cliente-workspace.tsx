@@ -3,11 +3,20 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 
 import { saveNegociacion } from "@/app/actions/negociacion";
+import { AssigneeSelect } from "@/components/assignee-select";
 import { ClienteCommsPanel } from "@/components/cliente/cliente-comms-panel";
-import { ClientePlataformaCsvInfo, DealCalculatorDetail, DealSummaryHighlights } from "@/components/cliente/deal-summary";
+import {
+  ClienteSeguimientoPanel,
+  type ActividadLogEntry,
+} from "@/components/cliente/cliente-seguimiento-panel";
+import {
+  ClientePlataformaCsvInfo,
+  DealCalculatorDetail,
+  DealSummaryHighlights,
+} from "@/components/cliente/deal-summary";
 import { PagoIntencionBlock } from "@/components/cliente/pago-intencion-block";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { calculate } from "@/lib/calculator";
-import { STATUS, STATUS_ORDER } from "@/lib/constants";
+import type { AssignableAgent } from "@/lib/assignable-agents";
+import { RULES, STATUS, STATUS_ORDER } from "@/lib/constants";
 import type { CalculatorClientInput, CallStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +39,7 @@ const ClientePdfPreview = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div
-        className="flex min-h-[320px] flex-col rounded-lg border bg-muted/30"
-        aria-hidden
-      >
+      <div className="flex min-h-[320px] flex-col rounded-lg border bg-muted/30" aria-hidden>
         <div className="border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
           Vista previa del PDF
         </div>
@@ -55,6 +62,8 @@ export type ClienteWorkspaceProps = {
     bucket: string | null;
     adeudo: number;
     semana: number;
+    semana_siguiente: number;
+    originacion_vehiculo: string | null;
     plazo_remanente: number;
     pago_en_dia: boolean;
     monto_pago_dia: number;
@@ -78,7 +87,12 @@ export type ClienteWorkspaceProps = {
     notes: string | null;
     updated_at: string;
     bono_pronto_pago: boolean;
+    assigned_to: string | null;
+    assigned_to_name: string | null;
   };
+  actividadLog: ActividadLogEntry[];
+  assignableAgents: AssignableAgent[];
+  canAssign: boolean;
 };
 
 function isCallStatus(s: string): s is CallStatus {
@@ -108,7 +122,16 @@ function deriveInitialPago(ci: CalculatorClientInput, pi: number | null) {
   return z.pagoIntencionMin;
 }
 
-export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps) {
+const UNSAVED_LEAVE_MESSAGE =
+  "Tenés cambios sin guardar. Si salís de esta pantalla, no se van a guardar.";
+
+export function ClienteWorkspace({
+  cliente,
+  negociacion,
+  actividadLog,
+  assignableAgents,
+  canAssign,
+}: ClienteWorkspaceProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -116,6 +139,7 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
     () => ({
       adeudo: cliente.adeudo,
       semana: cliente.semana,
+      semana_siguiente: cliente.semana_siguiente,
       plazo_remanente: cliente.plazo_remanente,
       pago_en_dia: cliente.pago_en_dia,
       monto_pago_dia: cliente.monto_pago_dia,
@@ -123,15 +147,25 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
     [cliente]
   );
 
-  const [pagoLive, setPagoLive] = useState(() =>
-    deriveInitialPago(clientInput, negociacion.pago_intencion)
+  const initialSnapshot = useMemo(
+    () => ({
+      status: isCallStatus(negociacion.status) ? negociacion.status : ("listo_contactar" as CallStatus),
+      fechaCompromiso: negociacion.fecha_compromiso?.slice(0, 10) ?? "",
+      motivoRechazo: negociacion.motivo_rechazo ?? "",
+      notes: negociacion.notes ?? "",
+      bonoProntoPago: Boolean(negociacion.bono_pronto_pago),
+      pago: deriveInitialPago(clientInput, negociacion.pago_intencion),
+    }),
+    [clientInput, negociacion]
   );
+
+  const [pagoLive, setPagoLive] = useState(initialSnapshot.pago);
 
   const onAmountChange = useCallback((n: number) => {
     setPagoLive(n);
   }, []);
 
-  const [bonoProntoPago, setBonoProntoPago] = useState(Boolean(negociacion.bono_pronto_pago));
+  const [bonoProntoPago, setBonoProntoPago] = useState(initialSnapshot.bonoProntoPago);
 
   const calc = useMemo(
     () => calculate(clientInput, pagoLive, { bonoProntoPago }),
@@ -139,16 +173,47 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
   );
   const baseCalc = useMemo(() => calculate(clientInput, 0), [clientInput]);
 
-  const [status, setStatus] = useState<CallStatus>(
-    isCallStatus(negociacion.status) ? negociacion.status : "listo_contactar"
-  );
-  const [fechaCompromiso, setFechaCompromiso] = useState(
-    negociacion.fecha_compromiso?.slice(0, 10) ?? ""
-  );
-  const [motivoRechazo, setMotivoRechazo] = useState(negociacion.motivo_rechazo ?? "");
-  const [notes, setNotes] = useState(negociacion.notes ?? "");
+  const [status, setStatus] = useState<CallStatus>(initialSnapshot.status);
+  const [fechaCompromiso, setFechaCompromiso] = useState(initialSnapshot.fechaCompromiso);
+  const [motivoRechazo, setMotivoRechazo] = useState(initialSnapshot.motivoRechazo);
+  const [notes, setNotes] = useState(initialSnapshot.notes);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const isDirty = useMemo(
+    () =>
+      status !== initialSnapshot.status ||
+      fechaCompromiso !== initialSnapshot.fechaCompromiso ||
+      motivoRechazo !== initialSnapshot.motivoRechazo ||
+      notes !== initialSnapshot.notes ||
+      bonoProntoPago !== initialSnapshot.bonoProntoPago ||
+      pagoLive !== initialSnapshot.pago,
+    [
+      status,
+      fechaCompromiso,
+      motivoRechazo,
+      notes,
+      bonoProntoPago,
+      pagoLive,
+      initialSnapshot,
+    ]
+  );
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = UNSAVED_LEAVE_MESSAGE;
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  const confirmLeave = useCallback(() => {
+    if (!isDirty) return true;
+    return window.confirm(UNSAVED_LEAVE_MESSAGE);
+  }, [isDirty]);
 
   const fechaCompromisoLabel = useMemo(
     () =>
@@ -195,7 +260,14 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard">← Volver al dashboard</Link>
+          <Link
+            href="/dashboard"
+            onClick={(event) => {
+              if (!confirmLeave()) event.preventDefault();
+            }}
+          >
+            ← Volver al dashboard
+          </Link>
         </Button>
       </div>
 
@@ -227,10 +299,34 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
             <StatusBadge status={status} />
           </div>
         </div>
+        <div className="flex flex-col items-start gap-2 lg:items-end">
+          <Label className="text-xs text-muted-foreground">Asignado a</Label>
+          <AssigneeSelect
+            clienteId={cliente.id}
+            negociacionId={negociacion.id}
+            assignedTo={negociacion.assigned_to}
+            assignedToName={negociacion.assigned_to_name}
+            agents={assignableAgents}
+            canAssign={canAssign}
+            onError={setAssignError}
+            triggerClassName="w-full min-w-[12rem] lg:w-auto"
+          />
+        </div>
       </header>
 
+      {assignError ? (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {assignError}
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm capitalize text-muted-foreground">{todayMx()}</p>
+        <div className="space-y-1">
+          <p className="text-sm capitalize text-muted-foreground">{todayMx()}</p>
+          {isDirty ? (
+            <p className="text-sm text-amber-800">{UNSAVED_LEAVE_MESSAGE}</p>
+          ) : null}
+        </div>
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
           <div className="w-full min-w-[200px] max-w-xs">
             <Label className="sr-only">Estado de la llamada</Label>
@@ -247,7 +343,12 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
               </SelectContent>
             </Select>
           </div>
-          <Button type="button" onClick={handleSave} disabled={pending}>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={pending || !isDirty}
+            variant={isDirty ? "default" : "outline"}
+          >
             {pending ? "Guardando…" : "Guardar cambios"}
           </Button>
         </div>
@@ -263,36 +364,102 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
       ) : null}
 
       <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
-        <div className="min-w-0 grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(0,1.1fr)] lg:items-start">
-          <PagoIntencionBlock
-            negociacionId={negociacion.id}
-            min={baseCalc.pagoIntencionMin}
-            max={baseCalc.pagoIntencionMax}
-            initialPago={negociacion.pago_intencion}
-            onAmountChange={onAmountChange}
-            isValid={calc.isValid}
-            isBelowMin={calc.isBelowMin}
-            isAboveMax={calc.isAboveMax}
-            fechaCompromiso={fechaCompromiso}
-            onFechaCompromisoChange={setFechaCompromiso}
-          />
-          <div className="min-w-0 space-y-6">
-            <DealCalculatorDetail
-              calc={calc}
-              bonoProntoPago={bonoProntoPago}
-              onBonoProntoPagoChange={setBonoProntoPago}
+        <div className="min-w-0 space-y-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_minmax(0,1.1fr)] lg:items-start">
+            <PagoIntencionBlock
+              negociacionId={negociacion.id}
+              min={baseCalc.pagoIntencionMin}
+              max={baseCalc.pagoIntencionMax}
+              initialPago={negociacion.pago_intencion}
+              currentAmount={pagoLive}
+              onAmountChange={onAmountChange}
+              isValid={calc.isValid}
+              isBelowMin={calc.isBelowMin}
+              isAboveMax={calc.isAboveMax}
+              fechaCompromiso={fechaCompromiso}
+              onFechaCompromisoChange={setFechaCompromiso}
             />
-            <ClientePlataformaCsvInfo
-              plataforma={cliente.plataforma}
-              ingresos_api={cliente.ingresos_api}
-              viajes_api={cliente.viajes_api}
+            <div className="min-w-0 space-y-6">
+              <DealCalculatorDetail
+                calc={calc}
+                bonoProntoPago={bonoProntoPago}
+                onBonoProntoPagoChange={setBonoProntoPago}
+              />
+              <ClientePlataformaCsvInfo
+                plataforma={cliente.plataforma}
+                ingresos_api={cliente.ingresos_api}
+                viajes_api={cliente.viajes_api}
+                originacion_vehiculo={cliente.originacion_vehiculo}
+              />
+            </div>
+          </div>
+
+          <ClienteSeguimientoPanel
+            intentos={negociacion.intentos}
+            maxIntentos={RULES.MAX_INTENTOS}
+            updatedAt={negociacion.updated_at}
+            entries={actividadLog}
+          />
+
+          {status === "rechazado" ? (
+            <div className="space-y-2">
+              <Label htmlFor="motivo">Motivo de rechazo</Label>
+              <textarea
+                id="motivo"
+                value={motivoRechazo}
+                onChange={(e) => setMotivoRechazo(e.target.value)}
+                rows={3}
+                className={cn(
+                  "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                )}
+                placeholder="Ej. No quiere reestructurar, prefiere liquidar, etc."
+              />
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notas de la llamada</Label>
+            <textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={5}
+              className={cn(
+                "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
+                "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              )}
+              placeholder="Contexto de la conversación…"
             />
           </div>
+
+          <details className="rounded-lg border bg-card p-4 text-sm open:shadow-sm">
+            <summary className="cursor-pointer font-medium">Información adicional del cliente</summary>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Bucket</dt>
+                <dd>{cliente.bucket ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">CI / Energía adicional</dt>
+                <dd>
+                  {cliente.ci ?? "—"}
+                  {cliente.energia_adicional != null ? ` · ${mx(cliente.energia_adicional)}` : ""}
+                </dd>
+              </div>
+            </dl>
+            {cliente.comments_originales ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Comentarios originales: </span>
+                {cliente.comments_originales}
+              </p>
+            ) : null}
+          </details>
         </div>
 
         <aside className="min-w-0 space-y-6">
           <section className="rounded-xl bg-gradient-to-br from-violet-600 to-indigo-800 p-6 text-white shadow-md">
-            <p className="text-sm font-medium text-white/90">Total de adeudo</p>
+            <p className="text-sm font-medium text-white/90">Saldo total</p>
             <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">
               {mx(calc.totalAdeudo)}
             </p>
@@ -340,71 +507,6 @@ export function ClienteWorkspace({ cliente, negociacion }: ClienteWorkspaceProps
             calc={calc}
           />
         </aside>
-      </div>
-
-      <div className="space-y-6">
-        <div className="rounded-lg border bg-card p-4 text-sm">
-          <p className="font-medium">Seguimiento</p>
-          <p className="mt-1 text-muted-foreground">
-            Intentos (sin respuesta):{" "}
-            <span className="font-mono font-medium text-foreground">{negociacion.intentos}</span> / 5
-          </p>
-        </div>
-
-        {status === "rechazado" ? (
-          <div className="space-y-2">
-            <Label htmlFor="motivo">Motivo de rechazo</Label>
-            <textarea
-              id="motivo"
-              value={motivoRechazo}
-              onChange={(e) => setMotivoRechazo(e.target.value)}
-              rows={3}
-              className={cn(
-                "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
-                "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              )}
-              placeholder="Ej. No quiere reestructurar, prefiere liquidar, etc."
-            />
-          </div>
-        ) : null}
-
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notas de la llamada</Label>
-          <textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={4}
-            className={cn(
-              "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
-              "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            )}
-            placeholder="Contexto de la conversación…"
-          />
-        </div>
-
-        <details className="rounded-lg border bg-card p-4 text-sm open:shadow-sm">
-          <summary className="cursor-pointer font-medium">Información adicional del cliente</summary>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div>
-              <dt className="text-muted-foreground">Bucket</dt>
-              <dd>{cliente.bucket ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">CI / Energía adicional</dt>
-              <dd>
-                {cliente.ci ?? "—"}
-                {cliente.energia_adicional != null ? ` · ${mx(cliente.energia_adicional)}` : ""}
-              </dd>
-            </div>
-          </dl>
-          {cliente.comments_originales ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Comentarios originales: </span>
-              {cliente.comments_originales}
-            </p>
-          ) : null}
-        </details>
       </div>
     </div>
   );

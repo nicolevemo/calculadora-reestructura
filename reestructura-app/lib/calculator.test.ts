@@ -70,7 +70,7 @@ describe("calculate", () => {
     expect(r.remanente).toBe(r.saldoAReestructurar - 2 * pi);
   });
 
-  it("caps CCC at 200 and sends excess to balloon", () => {
+  it("caps CSC at 200 and sends excess to balloon", () => {
     const r = calculate(
       {
         adeudo: 40_000,
@@ -83,8 +83,8 @@ describe("calculate", () => {
     );
 
     expect(r.remanente).toBe(45_000);
-    expect(r.cccTeorico).toBe(450);
-    expect(r.incrementoSemanal).toBe(RULES.TOPE_INCREMENTAL_RENTA);
+    expect(r.cscTeorico).toBe(450);
+    expect(r.cscAplicado).toBe(RULES.TOPE_INCREMENTAL_RENTA);
     expect(r.balloon).toBeCloseTo(25_000, 5);
     expect(r.nuevaSemanalidad).toBe(5_000 + RULES.TOPE_INCREMENTAL_RENTA);
   });
@@ -102,8 +102,8 @@ describe("calculate", () => {
     );
 
     expect(r.remanente).toBe(40_000);
-    expect(r.cccTeorico).toBe(400);
-    expect(r.incrementoSemanal).toBe(200);
+    expect(r.cscTeorico).toBe(400);
+    expect(r.cscAplicado).toBe(200);
     expect(r.balloon).toBeCloseTo(20_000, 5);
   });
 

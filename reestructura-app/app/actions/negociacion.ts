@@ -35,13 +35,17 @@ export type SaveNegociacionInput = z.infer<typeof saveNegociacionSchema>;
 function toClientInput(row: {
   adeudo: unknown;
   semana: unknown;
+  semana_siguiente?: unknown;
   plazo_remanente: unknown;
   pago_en_dia: unknown;
   monto_pago_dia: unknown;
 }): CalculatorClientInput {
+  const semanaSiguiente = Number(row.semana_siguiente);
   return {
     adeudo: Number(row.adeudo),
     semana: Number(row.semana),
+    semana_siguiente:
+      Number.isFinite(semanaSiguiente) && semanaSiguiente >= 0 ? semanaSiguiente : undefined,
     plazo_remanente: Number(row.plazo_remanente),
     pago_en_dia: Boolean(row.pago_en_dia),
     monto_pago_dia: Number(row.monto_pago_dia ?? 0),
@@ -80,7 +84,7 @@ export async function saveNegociacion(
 
     const { data: cliente, error: ce } = await supabase
       .from("clientes")
-      .select("id, adeudo, semana, plazo_remanente, pago_en_dia, monto_pago_dia")
+      .select("id, adeudo, semana, semana_siguiente, plazo_remanente, pago_en_dia, monto_pago_dia")
       .eq("id", input.clienteId)
       .single();
 

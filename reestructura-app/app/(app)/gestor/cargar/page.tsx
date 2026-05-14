@@ -26,12 +26,10 @@ export default async function GestorCargarPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Cargar CSV</h1>
         <p className="max-w-2xl text-muted-foreground">
-          Subí el shortlist semanal. Se validan columnas y tipos en el navegador; al confirmar, el
-          servidor crea el registro en <code className="rounded bg-muted px-1 py-0.5 text-xs">shortlist_uploads</code>{" "}
-          y las filas en <code className="rounded bg-muted px-1 py-0.5 text-xs">clientes</code>. Cada
-          cliente dispara una negociación en estado{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">listo_contactar</code> por trigger en
-          la base.
+          Subí el shortlist semanal. Podés descargar la plantilla CSV con las columnas acordadas;
+          se validan tipos en el navegador y, al confirmar, el servidor crea el registro en{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">shortlist_uploads</code> y las
+          filas en <code className="rounded bg-muted px-1 py-0.5 text-xs">clientes</code>.
         </p>
       </div>
       {canQuery ? (

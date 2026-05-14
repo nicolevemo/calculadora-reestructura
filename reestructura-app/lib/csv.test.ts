@@ -2,34 +2,43 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseDecimal,
-  parseOriginationDate,
-  parseSiNo,
+  parseOriginacionVehiculo,
   prepareCsvForPapa,
   validateCsvHeaders,
   validateCsvRows,
 } from "./csv";
 
-describe("parseSiNo", () => {
-  it("interpreta SI/NO y variantes", () => {
-    expect(parseSiNo("SI")).toBe(true);
-    expect(parseSiNo("sí")).toBe(true);
-    expect(parseSiNo("1")).toBe(true);
-    expect(parseSiNo("NO")).toBe(false);
-    expect(parseSiNo("")).toBe(false);
-  });
-});
-
-describe("parseOriginationDate", () => {
-  it("acepta ISO y DD/MM/YYYY", () => {
-    expect(parseOriginationDate("2024-01-15")).toBe("2024-01-15");
-    expect(parseOriginationDate("5/3/2024")).toBe("2024-03-05");
+describe("parseOriginacionVehiculo", () => {
+  it('acepta new/used y variantes en español', () => {
+    expect(parseOriginacionVehiculo("new")).toBe("new");
+    expect(parseOriginacionVehiculo("used")).toBe("used");
+    expect(parseOriginacionVehiculo("nuevo")).toBe("new");
+    expect(parseOriginacionVehiculo("")).toBeNull();
   });
 });
 
 describe("validateCsvHeaders", () => {
-  it("exige columnas obligatorias", () => {
+  it("exige columnas obligatorias del layout nuevo", () => {
     expect(validateCsvHeaders(["af", "nombre", "adeudo"])).toMatch(/semana/);
-    expect(validateCsvHeaders(["af", "nombre", "adeudo", "semana", "plazo_remanente"])).toBeNull();
+    expect(
+      validateCsvHeaders([
+        "af",
+        "nombre",
+        "adeudo",
+        "semana",
+      ])
+    ).toMatch(/semana_siguiente/);
+    expect(
+      validateCsvHeaders([
+        "af",
+        "nombre",
+        "adeudo",
+        "semana",
+        "semana_siguiente",
+        "plazo_remanente",
+        "plataforma",
+      ])
+    ).toBeNull();
   });
 });
 
@@ -42,7 +51,8 @@ describe("parseDecimal", () => {
 
 describe("prepareCsvForPapa", () => {
   it("salta filas vacías iniciales y detecta ;", () => {
-    const raw = ";;;;;;;\nAF;Nombre;Adeudo;Semana;Plazo Remanente\nAF1;Juan;1000;200;48\n";
+    const raw =
+      ";;;;;;;\nAF;Nombre;Saldo vencido;Semanalidad actual;Semanalidad siguiente;Plazo;Plataforma\nAF1;Juan;1000;200;220;48;Uber\n";
     const { text, delimiter } = prepareCsvForPapa(raw);
     expect(delimiter).toBe(";");
     expect(text.startsWith("AF;Nombre")).toBe(true);
@@ -57,17 +67,19 @@ describe("validateCsvRows", () => {
         nombre: "Juan",
         adeudo: "10000",
         semana: "1200",
+        semana_siguiente: "1300",
         plazo_remanente: "48",
+        plataforma: "Uber",
       },
     ]);
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.rows[0].adeudo).toBe(10000);
-      expect(res.rows[0].pago_en_dia).toBe(false);
+      expect(res.rows[0].semana_siguiente).toBe(1300);
     }
   });
 
-  it("acepta fila estilo Excel con plataforma Uber y miles con punto", () => {
+  it("acepta fila estilo Excel con miles con punto y columnas opcionales", () => {
     const res = validateCsvRows([
       {
         af: "5730AF",
@@ -76,17 +88,19 @@ describe("validateCsvRows", () => {
         adeudo: "44.809",
         plazo_remanente: "178",
         semana: "6.867",
+        semana_siguiente: "6.867",
         plataforma: "Uber",
         ingresos_api: "7.800",
         viajes_api: "67",
+        originacion_vehiculo: "used",
       },
     ]);
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.rows[0].adeudo).toBe(44809);
       expect(res.rows[0].semana).toBe(6867);
-      expect(res.rows[0].api_uber).toBe(true);
       expect(res.rows[0].ingresos_api).toBe(7800);
+      expect(res.rows[0].originacion_vehiculo).toBe("used");
     }
   });
 
@@ -98,7 +112,9 @@ describe("validateCsvRows", () => {
         nombre: "Y",
         adeudo: "1",
         semana: "1",
+        semana_siguiente: "1",
         plazo_remanente: "10",
+        plataforma: "DiDi",
       },
     ]);
     expect(res.ok).toBe(true);

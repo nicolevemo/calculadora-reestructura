@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload } from "lucide-react";
+import { Upload, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import Papa from "papaparse";
@@ -25,6 +25,7 @@ import {
   validateCsvRows,
   type ClienteCsvInsert,
 } from "@/lib/csv";
+import { CSV_TEMPLATE_FILENAME, CSV_TEMPLATE_PATH } from "@/lib/csv-template";
 import { cn } from "@/lib/utils";
 
 type Phase = "idle" | "ready" | "uploading" | "done";
@@ -187,18 +188,21 @@ export function GestorCsvUpload() {
       <CardHeader>
         <CardTitle>Archivo CSV</CardTitle>
         <CardDescription>
-          Columnas obligatorias:{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            af, nombre, adeudo, semana, plazo_remanente
-          </code>
-          . Se aceptan <strong>coma o punto y coma</strong> como separador, filas vacías al inicio
-          (típico de Excel), números con <strong>punto como miles</strong> (ej. 44.809) y columnas
-          como <code className="text-xs">Numero de Telefono</code>,{" "}
-          <code className="text-xs">Renta</code>, <code className="text-xs">Net Earnings</code> /{" "}
-          <code className="text-xs">Trips</code>.
+          Descargá la plantilla con las columnas del shortlist. Obligatorias: AF, Nombre, Saldo
+          vencido, Semanalidad actual, Semanalidad siguiente, Plazo y Plataforma. Opcionales:
+          Teléfono, Net earnings, Viajes, Originación (new/used) y Vehículo. Se aceptan coma o
+          punto y coma, filas vacías al inicio (Excel) y montos con punto de miles.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" asChild>
+            <a href={CSV_TEMPLATE_PATH} download={CSV_TEMPLATE_FILENAME}>
+              <Download className="h-4 w-4" aria-hidden />
+              Descargar plantilla CSV
+            </a>
+          </Button>
+        </div>
         <div
           role="button"
           tabIndex={0}
@@ -280,6 +284,8 @@ export function GestorCsvUpload() {
                       <TableHead>Nombre</TableHead>
                       <TableHead className="text-right">Adeudo</TableHead>
                       <TableHead className="text-right">Semana</TableHead>
+                      <TableHead className="text-right">Sem. sig.</TableHead>
+                      <TableHead>Plataforma</TableHead>
                       <TableHead className="text-right">Plazo</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -290,6 +296,8 @@ export function GestorCsvUpload() {
                         <TableCell className="max-w-[200px] truncate">{r.nombre}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.adeudo}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.semana}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.semana_siguiente}</TableCell>
+                        <TableCell className="max-w-[120px] truncate">{r.plataforma}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.plazo_remanente}</TableCell>
                       </TableRow>
                     ))}

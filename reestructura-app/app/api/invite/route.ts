@@ -104,7 +104,39 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ invites: data ?? [] });
+    const emails = (data ?? [])
+      .map((row) => normalizeEmail(String(row.email)))
+      .filter(Boolean);
+
+    let profileByEmail = new Map<string, { id: string; created_at: string | null }>();
+    if (emails.length > 0) {
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, email, created_at")
+        .in("email", emails);
+      profileByEmail = new Map(
+        (profiles ?? []).map((profile) => [
+          normalizeEmail(String(profile.email)),
+          {
+            id: String(profile.id),
+            created_at: (profile.created_at as string | null) ?? null,
+          },
+        ])
+      );
+    }
+
+    const invites = (data ?? []).map((row) => {
+      const email = normalizeEmail(String(row.email));
+      const profile = profileByEmail.get(email);
+      return {
+        ...row,
+        in_platform: Boolean(profile),
+        profile_id: profile?.id ?? null,
+        profile_created_at: profile?.created_at ?? null,
+      };
+    });
+
+    return NextResponse.json({ invites });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Error interno";
     return NextResponse.json({ error: message }, { status: 500 });

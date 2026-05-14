@@ -6,7 +6,9 @@ export const CSV_REQUIRED_HEADERS = [
   "nombre",
   "adeudo",
   "semana",
+  "semana_siguiente",
   "plazo_remanente",
+  "plataforma",
 ] as const;
 
 export type CsvRequiredHeader = (typeof CSV_REQUIRED_HEADERS)[number];
@@ -17,20 +19,14 @@ export type ClienteCsvInsert = {
   nombre: string;
   telefono: string | null;
   vehiculo: string | null;
-  plataforma: string | null;
-  bucket: string | null;
-  origination_date: string | null;
+  plataforma: string;
+  originacion_vehiculo: "new" | "used" | null;
   plazo_remanente: number;
   adeudo: number;
   semana: number;
-  pago_en_dia: boolean;
-  monto_pago_dia: number;
-  api_uber: boolean;
-  api_didi: boolean;
+  semana_siguiente: number;
   ingresos_api: number | null;
   viajes_api: number | null;
-  ci: string | null;
-  energia_adicional: number | null;
 };
 
 export function normalizeHeaderKey(raw: string): string {
@@ -48,6 +44,8 @@ const HEADER_ALIASES: Record<string, string> = {
   cuenta: "af",
   af_cliente: "af",
   saldo_vencido: "adeudo",
+  semanalidad_actual: "semana",
+  semanalidad_siguiente: "semana_siguiente",
   renta_semana: "semana",
   renta: "semana",
   semanas_restantes: "plazo_remanente",
@@ -55,19 +53,15 @@ const HEADER_ALIASES: Record<string, string> = {
   numero_de_telefono: "telefono",
   numerodetelefono: "telefono",
   net_earnings: "ingresos_api",
+  netearning: "ingresos_api",
+  netearningstrips: "ingresos_api",
   trips: "viajes_api",
+  originacion_newused: "originacion_vehiculo",
+  originacion: "originacion_vehiculo",
 };
 
 export function mapHeaderAlias(key: string): string {
   return HEADER_ALIASES[key] ?? key;
-}
-
-export function parseSiNo(value: string | undefined | null): boolean {
-  if (value == null) return false;
-  const v = value.trim().toUpperCase();
-  if (v === "SI" || v === "SÍ" || v === "1" || v === "TRUE" || v === "YES") return true;
-  if (v === "NO" || v === "0" || v === "FALSE" || v === "") return false;
-  return false;
 }
 
 export function parseDecimal(value: string | undefined | null, field: string): number {
@@ -76,7 +70,6 @@ export function parseDecimal(value: string | undefined | null, field: string): n
   }
   let s = String(value).replace(/\s/g, "").trim();
 
-  // Europeo: 1.234,56
   if (/^\d{1,3}(\.\d{3})*,\d+$/.test(s)) {
     s = s.replace(/\./g, "").replace(",", ".");
     const n = Number(s);
@@ -86,7 +79,6 @@ export function parseDecimal(value: string | undefined | null, field: string): n
     return n;
   }
 
-  // Excel ES/LATAM: puntos como miles (44.809 → 44809)
   if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
     const n = parseInt(s.replace(/\./g, ""), 10);
     if (!Number.isFinite(n)) {
@@ -137,6 +129,16 @@ export function parseOptionalInt(value: string | undefined | null): number | nul
   return n;
 }
 
+export function parseOriginacionVehiculo(
+  value: string | undefined | null
+): "new" | "used" | null {
+  if (value == null || !String(value).trim()) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "new" || normalized === "nuevo") return "new";
+  if (normalized === "used" || normalized === "usado") return "used";
+  throw new Error('Originación debe ser "new" o "used"');
+}
+
 /** Detecta `;` vs `,` según la primera fila con encabezados. */
 export function guessCsvDelimiter(line: string): string {
   const sc = (line.match(/;/g) ?? []).length;
@@ -168,42 +170,19 @@ export function prepareCsvForPapa(raw: string): { text: string; delimiter: strin
   return { text, delimiter };
 }
 
-/** Devuelve YYYY-MM-DD o null. Acepta ISO o DD/MM/YYYY. */
-export function parseOriginationDate(value: string | undefined | null): string | null {
-  if (value == null || !String(value).trim()) return null;
-  const s = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    return s.slice(0, 10);
-  }
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) {
-    const d = m[1].padStart(2, "0");
-    const mo = m[2].padStart(2, "0");
-    const y = m[3];
-    return `${y}-${mo}-${d}`;
-  }
-  return null;
-}
-
 const clienteInsertSchema = z.object({
   af: z.string().min(1).max(120),
   nombre: z.string().min(1).max(500),
   telefono: z.string().max(80).nullable(),
   vehiculo: z.string().max(200).nullable(),
-  plataforma: z.string().max(120).nullable(),
-  bucket: z.string().max(120).nullable(),
-  origination_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]),
+  plataforma: z.string().min(1).max(120),
+  originacion_vehiculo: z.enum(["new", "used"]).nullable(),
   plazo_remanente: z.number().int().positive().max(520),
   adeudo: z.number().finite().nonnegative(),
   semana: z.number().finite().nonnegative(),
-  pago_en_dia: z.boolean(),
-  monto_pago_dia: z.number().finite().nonnegative(),
-  api_uber: z.boolean(),
-  api_didi: z.boolean(),
+  semana_siguiente: z.number().finite().nonnegative(),
   ingresos_api: z.number().finite().nullable(),
   viajes_api: z.number().int().nonnegative().nullable(),
-  ci: z.string().max(120).nullable(),
-  energia_adicional: z.number().finite().nullable(),
 });
 
 export function recordToClienteInsert(
@@ -215,17 +194,19 @@ export function recordToClienteInsert(
 
     const af = g("af");
     const nombre = g("nombre");
-    const adeudo = parseDecimal(row.adeudo, "adeudo");
-    const semana = parseDecimal(row.semana, "semana");
+    const plataforma = g("plataforma");
+    if (!plataforma) {
+      throw new Error("plataforma es obligatoria");
+    }
+
+    const adeudo = parseDecimal(row.adeudo, "saldo vencido");
+    const semana = parseDecimal(row.semana, "semanalidad actual");
+    const semanaSiguiente = parseDecimal(row.semana_siguiente, "semanalidad siguiente");
     const plazoRaw = row.plazo_remanente;
     const plazo = parseOptionalInt(String(plazoRaw ?? ""));
     if (plazo == null || plazo <= 0) {
-      throw new Error("plazo_remanente debe ser un entero > 0");
+      throw new Error("plazo debe ser un entero > 0");
     }
-
-    const plat = g("plataforma").toLowerCase();
-    const api_uber = parseSiNo(row.api_uber) || plat.includes("uber");
-    const api_didi = parseSiNo(row.api_didi) || plat.includes("didi");
 
     const raw: ClienteCsvInsert = {
       af,
@@ -235,20 +216,14 @@ export function recordToClienteInsert(
         return t || null;
       })(),
       vehiculo: g("vehiculo") || null,
-      plataforma: g("plataforma") || null,
-      bucket: g("bucket") || null,
-      origination_date: parseOriginationDate(row.origination_date),
+      plataforma,
+      originacion_vehiculo: parseOriginacionVehiculo(row.originacion_vehiculo),
       plazo_remanente: plazo,
       adeudo,
       semana,
-      pago_en_dia: parseSiNo(row.pago_en_dia),
-      monto_pago_dia: parseOptionalDecimal(row.monto_pago_dia) ?? 0,
-      api_uber,
-      api_didi,
+      semana_siguiente: semanaSiguiente,
       ingresos_api: parseOptionalDecimal(row.ingresos_api),
       viajes_api: parseOptionalInt(row.viajes_api),
-      ci: g("ci") || null,
-      energia_adicional: parseOptionalDecimal(row.energia_adicional),
     };
 
     const parsed = clienteInsertSchema.safeParse(raw);

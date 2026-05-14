@@ -7,6 +7,10 @@ export function dashboardRowToCalculatorInput(row: ClienteDashboardRow): Calcula
   return {
     adeudo: Number(row.adeudo),
     semana: Number(row.semana),
+    semana_siguiente:
+      row.semana_siguiente != null && Number.isFinite(Number(row.semana_siguiente))
+        ? Number(row.semana_siguiente)
+        : undefined,
     plazo_remanente: Number(row.plazo_remanente),
     pago_en_dia: Boolean(row.pago_en_dia),
     monto_pago_dia: Number(row.monto_pago_dia ?? 0),
@@ -35,6 +39,8 @@ export function dashboardRowToExportRecord(
     status: row.status ?? "",
     adeudo: row.adeudo,
     semana: row.semana,
+    semana_siguiente: row.semana_siguiente ?? row.semana,
+    originacion_vehiculo: row.originacion_vehiculo,
     plazo_remanente: row.plazo_remanente,
     pago_intencion: row.pago_intencion,
     fecha_compromiso: row.fecha_compromiso,
@@ -48,9 +54,9 @@ export function dashboardRowToExportRecord(
     total_pagar_hoy: c.totalPagarHoy,
     condonacion: c.condonacion,
     remanente: c.remanente,
-    ccc_teorico: c.cccTeorico,
+    csc_teorico: c.cscTeorico,
     indicativo_semanal: c.indicativoSemanal,
-    incremento_semanal: c.incrementoSemanal,
+    csc_aplicado: c.cscAplicado,
     balloon: c.balloon,
     nueva_semanalidad: c.nuevaSemanalidad,
     bono_pronto_pago: Boolean(row.bono_pronto_pago),
