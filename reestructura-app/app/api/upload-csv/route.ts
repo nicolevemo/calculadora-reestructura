@@ -7,6 +7,7 @@ import {
 } from "@/lib/csv";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { getSessionProfile } from "@/lib/session-profile";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type AuthGestor =
@@ -57,6 +58,13 @@ async function authorizeGestorUpload(
   return { ok: true, uploadedBy: user.id };
 }
 
+function createUploadWriteClient() {
+  if (isDevAuthBypass() && isDevServerDataOverride()) {
+    return createClient();
+  }
+  return createAdminClient();
+}
+
 export async function POST(request: Request) {
   try {
     const json: unknown = await request.json();
@@ -72,6 +80,17 @@ export async function POST(request: Request) {
     const auth = await authorizeGestorUpload(supabase);
     if (!auth.ok) return auth.response;
 
+    let writeClient;
+    try {
+      writeClient = createUploadWriteClient();
+    } catch (e) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Falta SUPABASE_SERVICE_ROLE_KEY para registrar la carga.";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
     const { filename, week_of, notes, rows: rawRows } = parsed.data;
     const stringRows = coerceRowsToStrings(rawRows as Record<string, unknown>[]);
     const validated = validateCsvRows(stringRows);
@@ -84,7 +103,7 @@ export async function POST(request: Request) {
 
     const insertRows = validated.rows;
 
-    const { data: upload, error: upErr } = await supabase
+    const { data: upload, error: upErr } = await writeClient
       .from("shortlist_uploads")
       .insert({
         filename,
@@ -126,14 +145,14 @@ export async function POST(request: Request) {
       energia_adicional: r.energia_adicional,
     }));
 
-    const { error: insErr } = await supabase.from("clientes").insert(payload);
+    const { error: insErr } = await writeClient.from("clientes").insert(payload);
 
     if (insErr) {
-      await supabase.from("shortlist_uploads").delete().eq("id", upload.id);
+      await writeClient.from("shortlist_uploads").delete().eq("id", upload.id);
       return NextResponse.json({ error: insErr.message }, { status: 500 });
     }
 
-    const { error: countErr } = await supabase
+    const { error: countErr } = await writeClient
       .from("shortlist_uploads")
       .update({ client_count: insertRows.length })
       .eq("id", upload.id);
