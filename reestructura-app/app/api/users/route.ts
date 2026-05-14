@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isDevAuthBypass } from "@/lib/dev-auth-bypass";
+import { listPlatformUsers, updatePlatformUserRole } from "@/lib/platform-users";
 import { getSessionProfile } from "@/lib/session-profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -37,16 +38,8 @@ export async function GET() {
 
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("profiles")
-      .select("id, email, full_name, role, created_at, updated_at")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ users: data ?? [] });
+    const users = await listPlatformUsers(admin);
+    return NextResponse.json({ users });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Error interno";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -78,41 +71,13 @@ export async function PATCH(request: Request) {
 
   try {
     const admin = createAdminClient();
-    const { data: existing, error: readError } = await admin
-      .from("profiles")
-      .select("id, email, full_name, role, created_at, updated_at")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (readError) {
-      return NextResponse.json({ error: readError.message }, { status: 500 });
-    }
-    if (!existing) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-    }
-
-    const { data: updated, error: updateError } = await admin
-      .from("profiles")
-      .update({ role: role as UserRole })
-      .eq("id", userId)
-      .select("id, email, full_name, role, created_at, updated_at")
-      .single();
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    const email = String(existing.email ?? "").trim().toLowerCase();
-    if (email) {
-      await admin
-        .from("invited_users")
-        .update({ role: role as UserRole })
-        .eq("email", email);
-    }
-
-    return NextResponse.json({ user: updated });
+    const user = await updatePlatformUserRole(admin, userId, role as UserRole);
+    return NextResponse.json({ user });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Error interno";
+    if (message === "Usuario no encontrado") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -110,18 +110,23 @@ export async function GET(request: Request) {
 
     let profileByEmail = new Map<string, { id: string; created_at: string | null }>();
     if (emails.length > 0) {
-      const { data: profiles } = await admin
-        .from("profiles")
-        .select("id, email, created_at")
-        .in("email", emails);
+      const { data: profiles } = await admin.from("profiles").select("id, email, created_at");
       profileByEmail = new Map(
-        (profiles ?? []).map((profile) => [
-          normalizeEmail(String(profile.email)),
-          {
-            id: String(profile.id),
-            created_at: (profile.created_at as string | null) ?? null,
-          },
-        ])
+        (profiles ?? [])
+          .map((profile) => {
+            const normalized = normalizeEmail(String(profile.email));
+            if (!emails.includes(normalized)) return null;
+            return [
+              normalized,
+              {
+                id: String(profile.id),
+                created_at: (profile.created_at as string | null) ?? null,
+              },
+            ] as const;
+          })
+          .filter((entry): entry is readonly [string, { id: string; created_at: string | null }] =>
+            Boolean(entry)
+          )
       );
     }
 
