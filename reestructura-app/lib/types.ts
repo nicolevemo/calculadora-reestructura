@@ -38,12 +38,12 @@ export interface CalculatorResult {
   saldoActual: number;
   semanalidadActual: number;
   semanalidadSiguiente: number;
-  /** Total de adeudo: saldo vencido + semanalidad siguiente. */
+  /** Saldo total: saldo a regularizar + semanalidad actual. */
   totalAdeudo: number;
-  /** Base de reestructura / saldo a reestructurar: saldo vencido + semanalidad siguiente. */
+  /** Saldo a regularizar: saldo vencido + semanalidad siguiente. */
   saldoAReestructurar: number;
   pagoIntencionMin: number;
-  /** Tope del pago de intención: 50% del total de adeudo. */
+  /** Tope del pago de intención: 50% del saldo total. */
   pagoIntencionMax: number;
   pagoIntencion: number;
   /** Pago total hoy: semanalidad actual + pago de intención. */

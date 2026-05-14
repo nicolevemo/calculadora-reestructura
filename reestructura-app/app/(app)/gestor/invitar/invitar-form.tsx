@@ -37,6 +37,21 @@ type InviteRow = {
   profile_created_at?: string | null;
 };
 
+type PlatformUserRow = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  created_at: string;
+  updated_at: string;
+};
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  agente: "Agente",
+  gestor: "Gestor",
+  admin: "Admin",
+};
+
 export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -45,6 +60,10 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
   const [message, setMessage] = useState<string | null>(null);
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
+  const [platformUsers, setPlatformUsers] = useState<PlatformUserRow[]>([]);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [roleSavingId, setRoleSavingId] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   const loadInvites = useCallback(async () => {
     setListError(null);
@@ -57,9 +76,57 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
     setInvites(json.invites ?? []);
   }, []);
 
+  const loadPlatformUsers = useCallback(async () => {
+    setUsersError(null);
+    const res = await fetch("/api/users");
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setUsersError(typeof json.error === "string" ? json.error : "No se pudo cargar usuarios");
+      return;
+    }
+    setPlatformUsers(json.users ?? []);
+  }, []);
+
   useEffect(() => {
     loadInvites();
   }, [loadInvites]);
+
+  useEffect(() => {
+    if (callerRole !== "admin") return;
+    loadPlatformUsers();
+  }, [callerRole, loadPlatformUsers]);
+
+  async function onRoleChange(userId: string, nextRole: UserRole) {
+    const current = platformUsers.find((user) => user.id === userId);
+    if (!current || current.role === nextRole) return;
+
+    setRoleSavingId(userId);
+    setRoleError(null);
+    const res = await fetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, role: nextRole }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setRoleSavingId(null);
+
+    if (!res.ok) {
+      const err =
+        typeof json.error === "string"
+          ? json.error
+          : JSON.stringify(json.error ?? "No se pudo actualizar el rol");
+      setRoleError(err);
+      return;
+    }
+
+    const updated = json.user as PlatformUserRow | undefined;
+    if (updated) {
+      setPlatformUsers((prev) => prev.map((user) => (user.id === updated.id ? updated : user)));
+    } else {
+      loadPlatformUsers();
+    }
+    loadInvites();
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,6 +156,9 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
     setFullName("");
     setRole("agente");
     loadInvites();
+    if (callerRole === "admin") {
+      loadPlatformUsers();
+    }
   }
 
   const canPickGestor = callerRole === "admin";
@@ -165,12 +235,78 @@ export function InvitarUsuariosForm({ callerRole }: { callerRole: UserRole }) {
         </CardContent>
       </Card>
 
+      {callerRole === "admin" ? (
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Usuarios en la plataforma</h2>
+            <p className="text-sm text-muted-foreground">
+              Cuentas con perfil activo. Cambiá el rol desde aquí; también se actualiza la
+              invitación asociada al mismo correo.
+            </p>
+          </div>
+          {roleError ? <p className="text-sm text-destructive">{roleError}</p> : null}
+          {usersError ? (
+            <p className="text-sm text-destructive">{usersError}</p>
+          ) : (
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Alta</TableHead>
+                    <TableHead>Rol</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {platformUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-muted-foreground">
+                        No hay usuarios conectados para mostrar.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    platformUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.email}</TableCell>
+                        <TableCell>{user.full_name?.trim() || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {fmtDateTime(user.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={user.role}
+                            onValueChange={(value) => onRoleChange(user.id, value as UserRole)}
+                            disabled={roleSavingId === user.id}
+                          >
+                            <SelectTrigger className="w-[10rem]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.keys(ROLE_LABELS) as UserRole[]).map((roleKey) => (
+                                <SelectItem key={roleKey} value={roleKey}>
+                                  {ROLE_LABELS[roleKey]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       <div>
         <h2 className="mb-3 text-lg font-semibold">Invitaciones recientes</h2>
         {listError ? (
           <p className="text-sm text-destructive">{listError}</p>
         ) : (
-          <div className="rounded-lg border">
+            <div className="rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>

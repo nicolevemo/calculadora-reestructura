@@ -78,6 +78,7 @@ describe("dashboardRowToApiCliente", () => {
     const payload = dashboardRowToApiCliente(baseRow);
     expect(payload.af).toBe("4573");
     expect(payload.calculo.saldo_a_regularizar).toBe(41000);
+    expect(payload.calculo.saldo_total).toBe(45000);
     expect(payload.calculo.condonacion).toBe(8000);
     expect(payload.calculo.csc_aplicado).toBe(200);
     expect(payload.bono_pronto_pago).toBe(true);

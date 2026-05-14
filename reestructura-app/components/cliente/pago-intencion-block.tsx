@@ -101,7 +101,7 @@ export function PagoIntencionBlock({
         <h3 className="text-sm font-semibold leading-none text-foreground">Pago de intención</h3>
         <p className="text-sm leading-snug text-muted-foreground">
           Monto extra en el pago total de hoy. Mínimo {formatMx(min)} · máximo {formatMx(max)} (50%
-          del total de adeudo).
+          del saldo total).
         </p>
       </div>
 
@@ -207,7 +207,7 @@ export function PagoIntencionBlock({
         {isAboveMax ? (
           <>
             <span className="font-semibold">Error: </span>
-            supera el máximo permitido para este cliente ({formatMx(max)}, 50% del total de adeudo).
+            supera el máximo permitido para este cliente ({formatMx(max)}, 50% del saldo total).
           </>
         ) : isBelowMin ? (
           <>

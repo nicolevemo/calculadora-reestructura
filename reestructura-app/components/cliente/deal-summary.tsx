@@ -32,13 +32,13 @@ const visibleRows: {
   {
     label: "Semanalidad siguiente",
     value: (c) => c.semanalidadSiguiente,
-    hint: "Renta de la semana siguiente incluida en el total de adeudo.",
+    hint: "Renta de la semana siguiente incluida en el saldo a regularizar.",
     tone: "neutral",
   },
   {
     label: "Pago de intención",
     value: (c) => c.pagoIntencion,
-    hint: "Monto extra en el pago total de hoy (hasta 50% del total de adeudo).",
+    hint: "Monto extra en el pago total de hoy (hasta 50% del saldo total).",
     tone: "amber",
   },
   {
@@ -70,9 +70,18 @@ const detailRows: {
   >;
   label: string;
   informative?: boolean;
+  hint?: string;
 }[] = [
-  { key: "totalAdeudo", label: "Saldo total" },
-  { key: "saldoAReestructurar", label: "Saldo a regularizar" },
+  {
+    key: "totalAdeudo",
+    label: "Saldo total",
+    hint: "Saldo a regularizar + semanalidad actual.",
+  },
+  {
+    key: "saldoAReestructurar",
+    label: "Saldo a regularizar",
+    hint: "Saldo vencido + semanalidad siguiente.",
+  },
   { key: "pagoIntencion", label: "Pago de intención" },
   { key: "condonacion", label: "Condonación" },
   { key: "remanente", label: "Deuda post-condonación" },
@@ -196,7 +205,7 @@ export function DealCalculatorDetail({
       </p>
       <table className="w-full text-sm">
         <tbody>
-          {detailRows.map(({ key, label, informative }) => (
+          {detailRows.map(({ key, label, informative, hint }) => (
             <tr
               key={key}
               className={cn(
@@ -210,7 +219,10 @@ export function DealCalculatorDetail({
                   informative ? "text-muted-foreground/80" : "text-foreground"
                 )}
               >
-                {label}
+                <span>{label}</span>
+                {hint ? (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
+                ) : null}
               </td>
               <td
                 className={cn(

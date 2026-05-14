@@ -32,9 +32,9 @@ function resolveBalances(client: CalculatorClientInput): Balances {
 
   const semanalidadActual = client.semana;
   const semanalidadSiguiente = client.semana_siguiente ?? client.semana;
-  const baseReestructura = saldoVencido + semanalidadSiguiente;
-  const totalAdeudo = baseReestructura;
-  const saldoAReestructurar = baseReestructura;
+  const saldoARegularizar = saldoVencido + semanalidadSiguiente;
+  const saldoAReestructurar = saldoARegularizar;
+  const totalAdeudo = saldoAReestructurar + semanalidadActual;
 
   return {
     saldoVencido,

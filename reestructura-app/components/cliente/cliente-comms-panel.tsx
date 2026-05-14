@@ -26,28 +26,23 @@ type Props = {
     telefono: string | null;
     plataforma: string | null;
   };
+  plazoRemanente: number;
+  fechaCompromisoIso: string;
   status: CallStatus;
-  /** Fecha ya formateada para PDF / mensajes */
+  /** Fecha ya formateada para mensajes */
   fechaCompromisoLabel: string;
   calc: CalculatorResult;
 };
 
 export function ClienteCommsPanel({
   cliente,
+  plazoRemanente,
+  fechaCompromisoIso,
   status,
   fechaCompromisoLabel,
   calc,
 }: Props) {
   const [pdfBusy, setPdfBusy] = useState(false);
-
-  const generatedAtLabel = useMemo(
-    () =>
-      new Date().toLocaleString("es-MX", {
-        dateStyle: "long",
-        timeStyle: "short",
-      }),
-    []
-  );
 
   const whatsappMessage = useMemo(() => {
     const lines = [
@@ -56,7 +51,7 @@ export function ClienteCommsPanel({
       `Te compartimos el resumen de reestructura LTO (AF ${cliente.af}).`,
       `Estado: ${STATUS[status].label}.`,
       ``,
-      `Saldo total: ${mx(calc.totalAdeudo)}`,
+      `Saldo a regularizar: ${mx(calc.saldoAReestructurar)}`,
       `Pago total: ${mx(calc.totalPagarHoy)} (${mx(calc.semanalidadActual)} semanalidad + ${mx(calc.pagoIntencion)} intención)`,
       `Semanalidad siguiente: ${mx(calc.semanalidadSiguiente)}`,
       ...(fechaCompromisoLabel
@@ -86,11 +81,8 @@ export function ClienteCommsPanel({
         <ReestructuraPdfDocument
           nombre={cliente.nombre}
           af={cliente.af}
-          telefono={cliente.telefono}
-          plataforma={cliente.plataforma}
-          status={status}
-          fechaCompromiso={fechaCompromisoLabel}
-          generatedAtLabel={generatedAtLabel}
+          plazoRemanente={plazoRemanente}
+          fechaCompromisoIso={fechaCompromisoIso}
           calc={calc}
         />
       ).toBlob();
@@ -99,7 +91,7 @@ export function ClienteCommsPanel({
       const a = document.createElement("a");
       a.href = url;
       const safeAf = cliente.af.replace(/[^\w.-]+/g, "_");
-      a.download = `reestructura-${safeAf}.pdf`;
+      a.download = `anexo-condiciones-${safeAf}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -107,16 +99,7 @@ export function ClienteCommsPanel({
     } finally {
       setPdfBusy(false);
     }
-  }, [
-    calc,
-    cliente.af,
-    cliente.nombre,
-    cliente.plataforma,
-    cliente.telefono,
-    fechaCompromisoLabel,
-    generatedAtLabel,
-    status,
-  ]);
+  }, [calc, cliente.af, cliente.nombre, fechaCompromisoIso, plazoRemanente]);
 
   return (
     <div className="space-y-4 rounded-lg border bg-card p-4 text-sm shadow-sm">

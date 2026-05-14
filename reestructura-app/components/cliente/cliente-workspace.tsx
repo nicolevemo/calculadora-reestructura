@@ -459,9 +459,12 @@ export function ClienteWorkspace({
 
         <aside className="min-w-0 space-y-6">
           <section className="rounded-xl bg-gradient-to-br from-violet-600 to-indigo-800 p-6 text-white shadow-md">
-            <p className="text-sm font-medium text-white/90">Saldo total</p>
+            <p className="text-sm font-medium text-white/90">Saldo a regularizar</p>
             <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">
-              {mx(calc.totalAdeudo)}
+              {mx(calc.saldoAReestructurar)}
+            </p>
+            <p className="mt-2 text-xs text-white/75">
+              Saldo vencido + semanalidad siguiente
             </p>
             <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
               <div>
@@ -488,11 +491,8 @@ export function ClienteWorkspace({
           <ClientePdfPreview
             nombre={cliente.nombre}
             af={cliente.af}
-            telefono={cliente.telefono}
-            plataforma={cliente.plataforma}
-            status={status}
-            fechaCompromiso={fechaCompromisoLabel}
-            generatedAtLabel="Vista previa — se actualiza al cambiar montos, fecha o estado"
+            plazoRemanente={cliente.plazo_remanente}
+            fechaCompromisoIso={fechaCompromiso}
             calc={calc}
           />
           <ClienteCommsPanel
@@ -502,6 +502,8 @@ export function ClienteWorkspace({
               telefono: cliente.telefono,
               plataforma: cliente.plataforma,
             }}
+            plazoRemanente={cliente.plazo_remanente}
+            fechaCompromisoIso={fechaCompromiso}
             status={status}
             fechaCompromisoLabel={fechaCompromisoLabel}
             calc={calc}

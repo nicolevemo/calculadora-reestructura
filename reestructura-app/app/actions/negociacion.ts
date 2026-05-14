@@ -122,7 +122,7 @@ export async function saveNegociacion(
         return {
           ok: false,
           error:
-            "El pago de intención debe estar entre el mínimo ($5.000) y el 50% del total de adeudo.",
+            "El pago de intención debe estar entre el mínimo ($5.000) y el 50% del saldo total.",
         };
       }
     }

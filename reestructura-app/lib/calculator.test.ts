@@ -18,7 +18,7 @@ describe("calculate", () => {
     expect(r.saldoActual).toBe(50_000);
     expect(r.semanalidadActual).toBe(2_000);
     expect(r.semanalidadSiguiente).toBe(2_000);
-    expect(r.totalAdeudo).toBe(52_000);
+    expect(r.totalAdeudo).toBe(54_000);
     expect(r.saldoAReestructurar).toBe(52_000);
   });
 
@@ -26,13 +26,19 @@ describe("calculate", () => {
     const r = calculate({ ...base, pago_en_dia: true, monto_pago_dia: 5_000 }, 0);
     expect(r.saldoVencido).toBe(45_000);
     expect(r.saldoAReestructurar).toBe(47_000);
-    expect(r.totalAdeudo).toBe(47_000);
+    expect(r.totalAdeudo).toBe(49_000);
+  });
+
+  it("saldo total equals saldo a regularizar plus semanalidad actual", () => {
+    const r = calculate({ ...base, semana_siguiente: 3_500 }, 0);
+    expect(r.saldoAReestructurar).toBe(r.saldoVencido + r.semanalidadSiguiente);
+    expect(r.totalAdeudo).toBe(r.saldoAReestructurar + r.semanalidadActual);
   });
 
   it("uses semana_siguiente when provided", () => {
     const r = calculate({ ...base, semana_siguiente: 3_500 }, 0);
     expect(r.semanalidadSiguiente).toBe(3_500);
-    expect(r.totalAdeudo).toBe(53_500);
+    expect(r.totalAdeudo).toBe(55_500);
     expect(r.saldoAReestructurar).toBe(53_500);
   });
 
@@ -56,9 +62,9 @@ describe("calculate", () => {
     expect(r.saldoVencido).toBe(15_000);
     expect(r.semanalidadActual).toBe(5_000);
     expect(r.semanalidadSiguiente).toBe(5_000);
-    expect(r.totalAdeudo).toBe(20_000);
+    expect(r.totalAdeudo).toBe(25_000);
     expect(r.saldoAReestructurar).toBe(20_000);
-    expect(r.pagoIntencionMax).toBe(10_000);
+    expect(r.pagoIntencionMax).toBe(12_500);
     expect(r.totalPagarHoy).toBe(15_000);
     expect(r.isValid).toBe(true);
   });

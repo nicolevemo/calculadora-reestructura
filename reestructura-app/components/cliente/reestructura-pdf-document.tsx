@@ -1,169 +1,309 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
-import type { CalculatorResult, CallStatus } from "@/lib/types";
+import {
+  buildPdfScheduleDates,
+  formatPdfCurrency,
+  formatPdfCurrencyDeduction,
+} from "@/lib/reestructura-pdf-format";
+import type { CalculatorResult } from "@/lib/types";
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
-  title: { fontSize: 18, marginBottom: 4, fontFamily: "Helvetica", fontWeight: "bold" },
-  subtitle: { fontSize: 11, marginBottom: 4, color: "#444" },
-  generatedAt: { fontSize: 8, marginBottom: 16, color: "#888" },
-  section: { marginBottom: 12 },
-  label: { fontSize: 9, color: "#666", marginBottom: 2 },
-  value: { fontSize: 11, marginBottom: 6 },
-  highlightGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
-  highlightCard: {
-    width: "31%",
-    minWidth: 150,
-    borderWidth: 1,
-    borderColor: "#d4d4d8",
-    borderRadius: 6,
-    backgroundColor: "#f8f7ff",
-    padding: 10,
+  page: {
+    paddingTop: 36,
+    paddingBottom: 40,
+    paddingHorizontal: 42,
+    fontSize: 9.5,
+    fontFamily: "Helvetica",
+    color: "#111111",
+    lineHeight: 1.35,
   },
-  highlightLabel: { fontSize: 8, color: "#52525b", marginBottom: 4 },
-  highlightValue: { fontSize: 14, fontFamily: "Helvetica", fontWeight: "bold", color: "#312e81" },
-  row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e5e5e5", paddingVertical: 4 },
-  cellL: { width: "55%", fontSize: 9 },
-  cellR: { width: "45%", fontSize: 9, textAlign: "right" },
-  headerRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#333", paddingBottom: 4, marginBottom: 2 },
-  headerCell: { fontSize: 9, fontFamily: "Helvetica", fontWeight: "bold" },
-  emphasis: { fontSize: 14, marginBottom: 6, fontFamily: "Helvetica", fontWeight: "bold" },
-  commitmentBox: {
-    marginTop: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#c4b5fd",
-    borderRadius: 6,
-    backgroundColor: "#f5f3ff",
-    padding: 12,
+  companyName: {
+    fontSize: 7.5,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    textAlign: "center",
+    marginBottom: 18,
+    color: "#1f1f1f",
   },
-  commitmentLabel: { fontSize: 10, color: "#4c1d95", marginBottom: 4, fontFamily: "Helvetica", fontWeight: "bold" },
-  commitmentValue: { fontSize: 13, fontFamily: "Helvetica", fontWeight: "bold", color: "#1e1b4b" },
-  footer: { marginTop: 8, fontSize: 8, color: "#666", lineHeight: 1.4 },
+  title: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    marginBottom: 22,
+  },
+  metaBlock: {
+    marginBottom: 18,
+  },
+  metaRow: {
+    marginBottom: 8,
+  },
+  metaLabel: {
+    fontSize: 8,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: "#666666",
+    marginBottom: 2,
+  },
+  metaValue: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+  },
+  section: {
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  sectionTitle: {
+    fontSize: 8,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    color: "#222222",
+    marginBottom: 8,
+    fontFamily: "Helvetica-Bold",
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 3,
+  },
+  rowLabel: {
+    width: "62%",
+    fontSize: 9.5,
+    color: "#222222",
+    paddingRight: 8,
+  },
+  rowValue: {
+    width: "38%",
+    fontSize: 9.5,
+    textAlign: "right",
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+  },
+  rowValueMuted: {
+    width: "38%",
+    fontSize: 9.5,
+    textAlign: "right",
+    color: "#444444",
+  },
+  benefitLine: {
+    fontSize: 9.5,
+    marginBottom: 4,
+    color: "#222222",
+  },
+  note: {
+    marginTop: 8,
+    fontSize: 8.5,
+    color: "#555555",
+    lineHeight: 1.45,
+  },
+  footer: {
+    marginTop: 18,
+    fontSize: 8,
+    color: "#555555",
+    lineHeight: 1.45,
+    textAlign: "justify",
+  },
+  signatureRow: {
+    marginTop: 18,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  signatureCell: {
+    width: "48%",
+    borderTopWidth: 1,
+    borderTopColor: "#cccccc",
+    paddingTop: 6,
+  },
+  signatureLabel: {
+    fontSize: 7.5,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: "#666666",
+  },
 });
 
-function mx(n: number) {
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    maximumFractionDigits: 0,
-  }).format(n);
+const COMPANY_NAME =
+  "FINANCIERA POR EL IMPULSO ECONÓMICO, S.A. DE C.V., SOFOM, E.N.R.";
+const LEGAL_FOOTER =
+  'Este Anexo de Condiciones Específicas forma parte integral de los Términos y Condiciones de la Promoción Mundialista de Financiera por el Impulso Económico, S.A. de C.V., SOFOM, E.N.R. ("VEMO Impulso"). Al firmar electrónicamente a través de la App VEMO Impulso, el Cliente declara haber leído, comprendido y aceptado íntegramente el contenido de este Anexo y los Términos y Condiciones de la Promoción.';
+
+type PdfRow = {
+  label: string;
+  value: string;
+  muted?: boolean;
+};
+
+function PdfSection({ title, rows }: { title: string; rows: PdfRow[] }) {
+  return (
+    <View style={styles.section}>
+      {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
+      {rows.map((row) => (
+        <View key={`${title}-${row.label}`} style={styles.row} wrap={false}>
+          <Text style={styles.rowLabel}>{row.label}</Text>
+          <Text style={row.muted ? styles.rowValueMuted : styles.rowValue}>{row.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 export type ReestructuraPdfDocumentProps = {
   nombre: string;
   af: string;
-  telefono: string | null;
-  plataforma: string | null;
-  status: CallStatus;
-  fechaCompromiso: string;
-  generatedAtLabel: string;
+  plazoRemanente: number;
+  fechaCompromisoIso: string;
   calc: CalculatorResult;
 };
 
 export function ReestructuraPdfDocument({
   nombre,
   af,
-  telefono,
-  plataforma,
-  fechaCompromiso,
-  generatedAtLabel,
+  plazoRemanente,
+  fechaCompromisoIso,
   calc,
 }: ReestructuraPdfDocumentProps) {
-  const nuevaSemanalidadPdf =
-    calc.bonoProntoPagoMonto > 0 ? calc.nuevaSemanalidadConBono : calc.nuevaSemanalidad;
-
-  const scheduleRows: { label: string; value: string }[] = [
-    { label: "Saldo remanente", value: mx(calc.remanente) },
-    { label: "Pago final", value: mx(calc.balloon) },
-    { label: "Nueva semanalidad", value: mx(nuevaSemanalidadPdf) },
-  ];
-
-  if (calc.bonoProntoPagoMonto > 0) {
-    scheduleRows.push(
-      { label: "Descuento por pago a tiempo", value: `−${mx(calc.bonoProntoPagoMonto)}` },
-      { label: "Semanalidad sin beneficio", value: mx(calc.nuevaSemanalidad) }
-    );
-  }
-
-  const highlights = [
-    { label: "Saldo total a regularizar", value: mx(calc.totalAdeudo) },
-    { label: "Pago de intención", value: mx(calc.pagoIntencion) },
-    { label: "Monto de condonación", value: mx(calc.condonacion) },
-  ];
+  const schedule = buildPdfScheduleDates(fechaCompromisoIso, plazoRemanente);
+  const semanasRestantes = Math.max(1, Math.floor(plazoRemanente));
+  const semanalidadOrdinaria = calc.semanalidadActual;
+  const pagoDiferimiento = calc.cscAplicado;
+  const totalSemanal = calc.bonoProntoPagoMonto > 0 ? calc.nuevaSemanalidadConBono : calc.nuevaSemanalidad;
+  const paymentDeadline = schedule?.paymentDeadline ?? "Por confirmar";
+  const firstOrdinaryPayment = schedule?.firstOrdinaryPayment ?? "Por confirmar";
+  const residualDue = schedule?.residualDue ?? "Por confirmar";
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>Resumen de tu Acuerdo</Text>
-        <Text style={styles.subtitle}>Propuesta personalizada de regularización</Text>
-        <Text style={styles.generatedAt}>Generado: {generatedAtLabel}</Text>
+        <Text style={styles.companyName}>{COMPANY_NAME}</Text>
+        <Text style={styles.title}>Anexo de Condiciones Específicas</Text>
+
+        <View style={styles.metaBlock}>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Cliente</Text>
+            <Text style={styles.metaValue}>{nombre}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Contrato (AF)</Text>
+            <Text style={styles.metaValue}>{af}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Fecha de pago</Text>
+            <Text style={styles.metaValue}>{paymentDeadline}</Text>
+          </View>
+        </View>
+
+        <PdfSection
+          title="Pago total"
+          rows={[
+            { label: "Pago de Intención", value: formatPdfCurrency(calc.pagoIntencion) },
+            { label: "Semanalidad corriente", value: formatPdfCurrency(calc.semanalidadActual) },
+            { label: "Pago Total", value: formatPdfCurrency(calc.totalPagarHoy) },
+          ]}
+        />
+
+        <PdfSection
+          title="Aplicación de la promoción"
+          rows={[
+            { label: "Adeudo a Regularizar", value: formatPdfCurrency(calc.saldoAReestructurar) },
+            { label: "Pago de Intención", value: formatPdfCurrencyDeduction(calc.pagoIntencion) },
+            {
+              label: "Condonación VEMO Impulso",
+              value: formatPdfCurrencyDeduction(calc.condonacion),
+            },
+            { label: "Saldo Remanente", value: formatPdfCurrency(calc.remanente) },
+          ]}
+        />
 
         <View style={styles.section}>
-          <Text style={styles.label}>Cliente</Text>
-          <Text style={styles.value}>{nombre}</Text>
-          <Text style={styles.label}>AF</Text>
-          <Text style={styles.value}>{af}</Text>
-          {telefono ? (
-            <>
-              <Text style={styles.label}>Teléfono</Text>
-              <Text style={styles.value}>{telefono}</Text>
-            </>
-          ) : null}
-          {plataforma ? (
-            <>
-              <Text style={styles.label}>Plataforma</Text>
-              <Text style={styles.value}>{plataforma}</Text>
-            </>
-          ) : null}
+          <Text style={styles.sectionTitle}>Beneficio</Text>
+          <Text style={styles.benefitLine}>Condonación Peso por Peso</Text>
+          <Text style={styles.benefitLine}>Diferimiento en Pagos Semanales</Text>
+          <Text style={styles.benefitLine}>Diferimiento con Saldo Remanente APLICA</Text>
         </View>
 
-        <View style={styles.highlightGrid}>
-          {highlights.map((item) => (
-            <View key={item.label} style={styles.highlightCard}>
-              <Text style={styles.highlightLabel}>{item.label}</Text>
-              <Text style={styles.highlightValue}>{item.value}</Text>
-            </View>
-          ))}
-        </View>
+        <PdfSection
+          title=""
+          rows={[
+            {
+              label: "Semanas restantes del Contrato",
+              value: `${semanasRestantes} semanas`,
+            },
+            {
+              label: "Pago Semanal de Diferimiento (CSC Mundialista · 0% anual)",
+              value: formatPdfCurrency(pagoDiferimiento),
+            },
+            { label: "Pago Residual", value: formatPdfCurrency(calc.balloon) },
+            {
+              label: "Fecha de exigibilidad del Pago Residual",
+              value: residualDue,
+              muted: true,
+            },
+          ]}
+        />
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Pago total</Text>
-          <Text style={styles.emphasis}>{mx(calc.totalPagarHoy)}</Text>
-          <View style={styles.row}>
-            <Text style={styles.cellL}>Semanalidad actual</Text>
-            <Text style={styles.cellR}>{mx(calc.semanalidadActual)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.cellL}>Pago de intención</Text>
-            <Text style={styles.cellR}>{mx(calc.pagoIntencion)}</Text>
-          </View>
-        </View>
+        <Text style={styles.note}>
+          Si el Contrato termina anticipadamente por cualquier causa, el Pago Residual se vuelve
+          exigible de forma inmediata.
+        </Text>
 
-        <View style={styles.section}>
-          <View style={styles.headerRow}>
-            <Text style={[styles.headerCell, { width: "55%" }]}>Concepto</Text>
-            <Text style={[styles.headerCell, { width: "45%", textAlign: "right" }]}>Monto</Text>
-          </View>
-          {scheduleRows.map((r) => (
-            <View key={r.label} style={styles.row} wrap={false}>
-              <Text style={styles.cellL}>{r.label}</Text>
-              <Text style={styles.cellR}>{r.value}</Text>
-            </View>
-          ))}
-        </View>
+        <PdfSection
+          title="Próximos pagos"
+          rows={[
+            {
+              label: "Primera Semanalidad ordinaria a tu cargo",
+              value: firstOrdinaryPayment,
+            },
+            { label: "Semanalidad ordinaria", value: formatPdfCurrency(semanalidadOrdinaria) },
+            {
+              label: "Pago Semanal de Diferimiento",
+              value: `${formatPdfCurrency(pagoDiferimiento)} / semana`,
+            },
+            { label: "Total semanal", value: formatPdfCurrency(totalSemanal) },
+          ]}
+        />
+      </Page>
 
-        {fechaCompromiso ? (
-          <View style={styles.commitmentBox}>
-            <Text style={styles.commitmentLabel}>Fecha límite para confirmar este acuerdo:</Text>
-            <Text style={styles.commitmentValue}>{fechaCompromiso}</Text>
-          </View>
+      <Page size="A4" style={styles.page}>
+        <PdfSection
+          title=""
+          rows={[
+            {
+              label: "Pago Residual al vencimiento del Contrato",
+              value: formatPdfCurrency(calc.balloon),
+            },
+          ]}
+        />
+
+        {calc.bonoProntoPagoMonto > 0 ? (
+          <PdfSection
+            title="Beneficio adicional"
+            rows={[
+              {
+                label: "Bono Gol Pronto Pago",
+                value: formatPdfCurrency(calc.bonoProntoPagoMonto),
+              },
+            ]}
+          />
         ) : null}
 
-        <Text style={styles.footer}>
-          Este documento es un resumen informativo. No constituye un contrato. Los montos definitivos
-          constarán en la documentación formal.
-        </Text>
+        {calc.bonoProntoPagoMonto > 0 ? (
+          <Text style={styles.note}>
+            Bonificación conforme a los términos y condiciones aplicables.
+          </Text>
+        ) : null}
+
+        <Text style={styles.footer}>{LEGAL_FOOTER}</Text>
+
+        <View style={styles.signatureRow}>
+          <View style={styles.signatureCell}>
+            <Text style={styles.signatureLabel}>Firma electrónica (App VEMO Impulso)</Text>
+          </View>
+          <View style={styles.signatureCell}>
+            <Text style={styles.signatureLabel}>Fecha de aceptación de la promoción</Text>
+          </View>
+        </View>
       </Page>
     </Document>
   );
