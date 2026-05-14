@@ -42,8 +42,9 @@ export async function updateSession(request: NextRequest) {
   const isLogin = request.nextUrl.pathname.startsWith("/login");
   const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");
   const isAuthRecuperar = request.nextUrl.pathname.startsWith("/auth/recuperar");
+  const isIntegrationApi = request.nextUrl.pathname.startsWith("/api/v1");
 
-  if (!user && !isLogin && !isAuthCallback && !isAuthRecuperar) {
+  if (!user && !isLogin && !isAuthCallback && !isAuthRecuperar && !isIntegrationApi) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
