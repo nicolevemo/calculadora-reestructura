@@ -74,6 +74,7 @@ export function DashboardClients({
       aceptado: count("aceptado"),
       rechazado: count("rechazado"),
       necesita_revision: count("necesita_revision"),
+      cerrado: count("cerrado"),
     };
   }, [rows]);
 

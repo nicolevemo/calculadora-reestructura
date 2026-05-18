@@ -27,6 +27,7 @@ const config: Config = {
           aceptado: "#10b981",
           rechazado: "#ef4444",
           revision: "#8b5cf6",
+          cerrado: "#475569",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",

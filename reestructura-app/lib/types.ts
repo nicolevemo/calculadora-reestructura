@@ -6,7 +6,8 @@ export type CallStatus =
   | "en_negociacion"
   | "aceptado"
   | "rechazado"
-  | "necesita_revision";
+  | "necesita_revision"
+  | "cerrado";
 
 export type UploadStatus = "procesando" | "activo" | "archivado";
 

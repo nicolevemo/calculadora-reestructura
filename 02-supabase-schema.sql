@@ -27,7 +27,8 @@ do $$ begin
     'en_negociacion',
     'aceptado',
     'rechazado',
-    'necesita_revision'
+    'necesita_revision',
+    'cerrado'
   );
 exception when duplicate_object then null; end $$;
 

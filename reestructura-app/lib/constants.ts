@@ -16,9 +16,10 @@ export const STATUS = {
   aceptado: { label: "Aceptado", color: "green" },
   rechazado: { label: "Rechazado", color: "red" },
   necesita_revision: { label: "Necesita revisión", color: "purple" },
+  cerrado: { label: "Cerrado", color: "slate" },
 } as const satisfies Record<
   CallStatus,
-  { label: string; color: "gray" | "amber" | "blue" | "green" | "red" | "purple" }
+  { label: string; color: "gray" | "amber" | "blue" | "green" | "red" | "purple" | "slate" }
 >;
 
 export const STATUS_ORDER: CallStatus[] = [
@@ -28,6 +29,7 @@ export const STATUS_ORDER: CallStatus[] = [
   "aceptado",
   "rechazado",
   "necesita_revision",
+  "cerrado",
 ];
 
 /** Alias por si el código referencia el nombre del árbol de archivos del brief */

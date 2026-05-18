@@ -17,6 +17,7 @@ const colorClass: Record<
   green: "border-transparent bg-emerald-100 text-emerald-900 hover:bg-emerald-100/80",
   red: "border-transparent bg-red-100 text-red-900 hover:bg-red-100/80",
   purple: "border-transparent bg-purple-100 text-purple-900 hover:bg-purple-100/80",
+  slate: "border-transparent bg-slate-200 text-slate-800 hover:bg-slate-200/80",
 };
 
 export function StatusBadge({ status }: { status: CallStatus | null | undefined }) {

@@ -196,6 +196,7 @@ Devuelve únicamente la parte operativa de la negociación (sin ficha completa n
 | `aceptado` | Aceptado |
 | `rechazado` | Rechazado |
 | `necesita_revision` | Necesita revisión |
+| `cerrado` | Cerrado |
 
 ---
 
