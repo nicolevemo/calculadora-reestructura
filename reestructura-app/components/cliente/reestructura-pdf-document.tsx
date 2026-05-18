@@ -170,7 +170,6 @@ export function ReestructuraPdfDocument({
   const pagoDiferimiento = calc.cscAplicado;
   const totalSemanal = calc.bonoProntoPagoMonto > 0 ? calc.nuevaSemanalidadConBono : calc.nuevaSemanalidad;
   const paymentDeadline = schedule?.paymentDeadline ?? "Por confirmar";
-  const firstOrdinaryPayment = schedule?.firstOrdinaryPayment ?? "Por confirmar";
   const residualDue = schedule?.residualDue ?? "Por confirmar";
 
   return (
@@ -251,10 +250,6 @@ export function ReestructuraPdfDocument({
         <PdfSection
           title="Próximos pagos"
           rows={[
-            {
-              label: "Primera Semanalidad ordinaria a tu cargo",
-              value: firstOrdinaryPayment,
-            },
             { label: "Semanalidad ordinaria", value: formatPdfCurrency(semanalidadOrdinaria) },
             {
               label: "Pago Semanal de Diferimiento",

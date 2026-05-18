@@ -63,7 +63,6 @@ export function addWeeks(date: Date, weeks: number): Date {
 
 export type PdfScheduleDates = {
   paymentDeadline: string;
-  firstOrdinaryPayment: string;
   residualDue: string;
 };
 
@@ -79,7 +78,6 @@ export function buildPdfScheduleDates(
 
   return {
     paymentDeadline: formatLegalPaymentDeadline(paymentDate),
-    firstOrdinaryPayment: formatLegalDate(addWeeks(paymentDate, 3)),
     residualDue: formatLegalShortDate(addWeeks(paymentDate, weeks)),
   };
 }

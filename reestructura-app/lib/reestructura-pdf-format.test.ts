@@ -28,7 +28,6 @@ describe("reestructura-pdf-format", () => {
     const schedule = buildPdfScheduleDates("2026-05-20", 32);
     expect(schedule).toEqual({
       paymentDeadline: "Miércoles 20/05/2026 · 23:59 h",
-      firstOrdinaryPayment: "Miércoles 10/06/2026",
       residualDue: "30/12/2026",
     });
   });
