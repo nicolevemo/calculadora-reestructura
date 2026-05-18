@@ -64,31 +64,58 @@ export function mapHeaderAlias(key: string): string {
   return HEADER_ALIASES[key] ?? key;
 }
 
+/**
+ * Interpreta montos en formatos habituales en MX / Excel:
+ * - Miles con punto: 6.146 → 6146
+ * - Miles con coma: 7,140 → 7140
+ * - Decimal EU con coma: 7,14 → 7.14 (solo si hay 1–2 decimales)
+ * - Mixto US: 1,234.56 → 1234.56
+ * - Mixto EU: 1.234,56 → 1234.56
+ */
+export function parseLocalizedNumber(raw: string): number {
+  let s = String(raw).replace(/\s/g, "").trim();
+  if (!s) return NaN;
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    if (lastComma > lastDot) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      s = s.replace(/,/g, "");
+    }
+    const n = Number(s);
+    return n;
+  }
+
+  if (hasComma && !hasDot) {
+    if (/^\d{1,3}(,\d{3})+$/.test(s)) {
+      return Number(s.replace(/,/g, ""));
+    }
+    if (/^\d+,\d{1,2}$/.test(s)) {
+      return Number(s.replace(",", "."));
+    }
+    return Number(s.replace(/,/g, ""));
+  }
+
+  if (hasDot && !hasComma) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+      return parseInt(s.replace(/\./g, ""), 10);
+    }
+    return Number(s);
+  }
+
+  return Number(s);
+}
+
 export function parseDecimal(value: string | undefined | null, field: string): number {
   if (value == null || !String(value).trim()) {
     throw new Error(`${field}: vacío`);
   }
-  let s = String(value).replace(/\s/g, "").trim();
-
-  if (/^\d{1,3}(\.\d{3})*,\d+$/.test(s)) {
-    s = s.replace(/\./g, "").replace(",", ".");
-    const n = Number(s);
-    if (!Number.isFinite(n)) {
-      throw new Error(`${field}: no es un número válido (${value})`);
-    }
-    return n;
-  }
-
-  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-    const n = parseInt(s.replace(/\./g, ""), 10);
-    if (!Number.isFinite(n)) {
-      throw new Error(`${field}: no es un número válido (${value})`);
-    }
-    return n;
-  }
-
-  const cleaned = s.replace(/,/g, "");
-  const n = Number(cleaned);
+  const n = parseLocalizedNumber(String(value));
   if (!Number.isFinite(n)) {
     throw new Error(`${field}: no es un número válido (${value})`);
   }
@@ -99,21 +126,7 @@ export function parseOptionalDecimal(
   value: string | undefined | null
 ): number | null {
   if (value == null || !String(value).trim()) return null;
-  let s = String(value).replace(/\s/g, "").trim();
-
-  if (/^\d{1,3}(\.\d{3})*,\d+$/.test(s)) {
-    s = s.replace(/\./g, "").replace(",", ".");
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-    const n = parseInt(s.replace(/\./g, ""), 10);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  const cleaned = s.replace(/,/g, "");
-  const n = Number(cleaned);
+  const n = parseLocalizedNumber(String(value));
   return Number.isFinite(n) ? n : null;
 }
 

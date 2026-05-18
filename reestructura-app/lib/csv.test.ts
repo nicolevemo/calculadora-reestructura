@@ -47,6 +47,17 @@ describe("parseDecimal", () => {
     expect(parseDecimal("44.809", "adeudo")).toBe(44809);
     expect(parseDecimal("6.867", "semana")).toBe(6867);
   });
+
+  it("interpreta coma como separador de miles (7,140 no es 7.14)", () => {
+    expect(parseDecimal("7,140", "adeudo")).toBe(7140);
+    expect(parseDecimal("6,146", "semana")).toBe(6146);
+    expect(parseDecimal("3,242", "ingresos")).toBe(3242);
+  });
+
+  it("interpreta formatos mixtos con coma y punto", () => {
+    expect(parseDecimal("1,234.56", "monto")).toBe(1234.56);
+    expect(parseDecimal("1.234,56", "monto")).toBe(1234.56);
+  });
 });
 
 describe("prepareCsvForPapa", () => {
@@ -76,6 +87,31 @@ describe("validateCsvRows", () => {
     if (res.ok) {
       expect(res.rows[0].adeudo).toBe(10000);
       expect(res.rows[0].semana_siguiente).toBe(1300);
+    }
+  });
+
+  it("acepta fila con miles con coma (caso 6826AF)", () => {
+    const res = validateCsvRows([
+      {
+        af: "6826AF",
+        nombre: "BOUCHOT FRAIRE GABRIEL",
+        telefono: "5512345678",
+        adeudo: "7,140",
+        semana: "6,146",
+        semana_siguiente: "6,146",
+        plazo_remanente: "192",
+        plataforma: "UBER",
+        ingresos_api: "3,242",
+        viajes_api: "76",
+        originacion_vehiculo: "new",
+        vehiculo: "AION ES",
+      },
+    ]);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.rows[0].adeudo).toBe(7140);
+      expect(res.rows[0].semana).toBe(6146);
+      expect(res.rows[0].ingresos_api).toBe(3242);
     }
   });
 

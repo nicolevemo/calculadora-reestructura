@@ -191,7 +191,9 @@ export function GestorCsvUpload() {
           Descargá la plantilla con las columnas del shortlist. Obligatorias: AF, Nombre, Saldo
           vencido, Semanalidad actual, Semanalidad siguiente, Plazo y Plataforma. Opcionales:
           Teléfono, Net earnings, Viajes, Originación (new/used) y Vehículo. Se aceptan coma o
-          punto y coma, filas vacías al inicio (Excel) y montos con punto de miles.
+          punto y coma, filas vacías al inicio (Excel) y montos con separador de miles con punto
+          (6.146) o con coma (7,140). Si el CSV usa coma como separador de columnas, exportá desde
+          Excel con punto y coma o poné los montos entre comillas.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
