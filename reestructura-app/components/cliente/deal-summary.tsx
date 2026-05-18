@@ -38,7 +38,7 @@ const visibleRows: {
   {
     label: "Pago de intención",
     value: (c) => c.pagoIntencion,
-    hint: "Monto extra en el pago total de hoy (hasta 50% del saldo total).",
+    hint: "Monto extra en el pago total de hoy (hasta 50% del saldo a regularizar).",
     tone: "amber",
   },
   {

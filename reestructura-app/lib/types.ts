@@ -43,7 +43,7 @@ export interface CalculatorResult {
   /** Saldo a regularizar: saldo vencido + semanalidad siguiente. */
   saldoAReestructurar: number;
   pagoIntencionMin: number;
-  /** Tope del pago de intención: 50% del saldo total. */
+  /** Tope del pago de intención: 50% del saldo a regularizar. */
   pagoIntencionMax: number;
   pagoIntencion: number;
   /** Pago total hoy: semanalidad actual + pago de intención. */

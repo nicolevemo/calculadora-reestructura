@@ -46,10 +46,10 @@ function resolveBalances(client: CalculatorClientInput): Balances {
   };
 }
 
-function resolvePagoIntencionRange(totalAdeudo: number): PagoIntencionRange {
+function resolvePagoIntencionRange(saldoAReestructurar: number): PagoIntencionRange {
   return {
     pagoIntencionMin: RULES.PAGO_INTENCION_MIN,
-    pagoIntencionMax: totalAdeudo * RULES.PAGO_INTENCION_PCT_MAX,
+    pagoIntencionMax: saldoAReestructurar * RULES.PAGO_INTENCION_PCT_MAX,
   };
 }
 
@@ -107,7 +107,7 @@ export function calculate(
   options?: CalculateOptions
 ): CalculatorResult {
   const balances = resolveBalances(client);
-  const range = resolvePagoIntencionRange(balances.totalAdeudo);
+  const range = resolvePagoIntencionRange(balances.saldoAReestructurar);
   const post = resolvePostCondonacion(balances.saldoAReestructurar, pagoIntencion);
   const schedule = resolveSchedule(
     post.remanente,

@@ -42,6 +42,15 @@ describe("calculate", () => {
     expect(r.saldoAReestructurar).toBe(53_500);
   });
 
+  it("pago de intención máximo is 50% of saldo a regularizar, not saldo total", () => {
+    const r = calculate(base, 0);
+    expect(r.saldoAReestructurar).toBe(52_000);
+    expect(r.totalAdeudo).toBe(54_000);
+    expect(r.pagoIntencionMax).toBe(r.saldoAReestructurar * RULES.PAGO_INTENCION_PCT_MAX);
+    expect(r.pagoIntencionMax).toBe(26_000);
+    expect(r.pagoIntencionMax).not.toBe(r.totalAdeudo * RULES.PAGO_INTENCION_PCT_MAX);
+  });
+
   it("pago total sums semanalidad actual and pago de intención", () => {
     const r = calculate(base, 10_000);
     expect(r.totalPagarHoy).toBe(r.semanalidadActual + r.pagoIntencion);
@@ -64,7 +73,7 @@ describe("calculate", () => {
     expect(r.semanalidadSiguiente).toBe(5_000);
     expect(r.totalAdeudo).toBe(25_000);
     expect(r.saldoAReestructurar).toBe(20_000);
-    expect(r.pagoIntencionMax).toBe(12_500);
+    expect(r.pagoIntencionMax).toBe(10_000);
     expect(r.totalPagarHoy).toBe(15_000);
     expect(r.isValid).toBe(true);
   });
