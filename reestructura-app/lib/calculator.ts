@@ -65,12 +65,12 @@ function resolvePostCondonacion(
 function resolveSchedule(
   remanente: number,
   plazoRemanente: number,
-  semanalidadActual: number
+  semanalidadSiguiente: number
 ): Schedule {
   const cscTeorico = remanente / plazoRemanente;
   const cscAplicado = Math.min(RULES.TOPE_INCREMENTAL_RENTA, cscTeorico);
   const balloon = Math.max(0, (cscTeorico - cscAplicado) * plazoRemanente);
-  const nuevaSemanalidad = semanalidadActual + cscAplicado;
+  const nuevaSemanalidad = semanalidadSiguiente + cscAplicado;
 
   return {
     cscTeorico,
@@ -112,7 +112,7 @@ export function calculate(
   const schedule = resolveSchedule(
     post.remanente,
     client.plazo_remanente,
-    balances.semanalidadActual
+    balances.semanalidadSiguiente
   );
   const bono = resolveBono(schedule.nuevaSemanalidad, options);
   const validation = resolveValidation(pagoIntencion, range);

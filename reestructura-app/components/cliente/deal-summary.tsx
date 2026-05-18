@@ -51,7 +51,7 @@ const visibleRows: {
     label: "Nueva semanalidad",
     value: (c) =>
       c.bonoProntoPagoMonto > 0 ? c.nuevaSemanalidadConBono : c.nuevaSemanalidad,
-    hint: "Total semanal estimado después de la reestructura.",
+    hint: "Semanalidad siguiente + CSC aplicado (con bono si aplica).",
     tone: "violet",
   },
 ];

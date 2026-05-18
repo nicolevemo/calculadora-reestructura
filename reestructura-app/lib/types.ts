@@ -59,6 +59,7 @@ export interface CalculatorResult {
   /** CSC aplicado (tope $200/sem). */
   cscAplicado: number;
   balloon: number;
+  /** Semanalidad siguiente + CSC aplicado. */
   nuevaSemanalidad: number;
   /** Monto del bono aplicado en simulación (0 o RULES.BONO_PRONTO_PAGO). */
   bonoProntoPagoMonto: number;

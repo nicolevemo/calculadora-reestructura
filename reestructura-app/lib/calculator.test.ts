@@ -51,6 +51,26 @@ describe("calculate", () => {
     expect(r.pagoIntencionMax).not.toBe(r.totalAdeudo * RULES.PAGO_INTENCION_PCT_MAX);
   });
 
+  it("nueva semanalidad uses semanalidad siguiente plus CSC aplicado", () => {
+    const r = calculate(
+      {
+        adeudo: 40_000,
+        semana: 5_000,
+        semana_siguiente: 6_000,
+        plazo_remanente: 100,
+        pago_en_dia: false,
+        monto_pago_dia: 0,
+      },
+      0
+    );
+
+    expect(r.semanalidadActual).toBe(5_000);
+    expect(r.semanalidadSiguiente).toBe(6_000);
+    expect(r.cscAplicado).toBe(RULES.TOPE_INCREMENTAL_RENTA);
+    expect(r.nuevaSemanalidad).toBe(6_000 + RULES.TOPE_INCREMENTAL_RENTA);
+    expect(r.nuevaSemanalidad).not.toBe(r.semanalidadActual + r.cscAplicado);
+  });
+
   it("pago total sums semanalidad actual and pago de intención", () => {
     const r = calculate(base, 10_000);
     expect(r.totalPagarHoy).toBe(r.semanalidadActual + r.pagoIntencion);
@@ -90,6 +110,7 @@ describe("calculate", () => {
       {
         adeudo: 40_000,
         semana: 5_000,
+        semana_siguiente: 5_000,
         plazo_remanente: 100,
         pago_en_dia: false,
         monto_pago_dia: 0,
@@ -101,7 +122,7 @@ describe("calculate", () => {
     expect(r.cscTeorico).toBe(450);
     expect(r.cscAplicado).toBe(RULES.TOPE_INCREMENTAL_RENTA);
     expect(r.balloon).toBeCloseTo(25_000, 5);
-    expect(r.nuevaSemanalidad).toBe(5_000 + RULES.TOPE_INCREMENTAL_RENTA);
+    expect(r.nuevaSemanalidad).toBe(r.semanalidadSiguiente + RULES.TOPE_INCREMENTAL_RENTA);
   });
 
   it("balloon example after condonación", () => {

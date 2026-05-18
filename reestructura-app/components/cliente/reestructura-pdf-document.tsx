@@ -166,7 +166,7 @@ export function ReestructuraPdfDocument({
 }: ReestructuraPdfDocumentProps) {
   const schedule = buildPdfScheduleDates(fechaCompromisoIso, plazoRemanente);
   const semanasRestantes = Math.max(1, Math.floor(plazoRemanente));
-  const semanalidadOrdinaria = calc.semanalidadActual;
+  const semanalidadOrdinaria = calc.semanalidadSiguiente;
   const pagoDiferimiento = calc.cscAplicado;
   const totalSemanal = calc.bonoProntoPagoMonto > 0 ? calc.nuevaSemanalidadConBono : calc.nuevaSemanalidad;
   const paymentDeadline = schedule?.paymentDeadline ?? "Por confirmar";
