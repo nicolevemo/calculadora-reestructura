@@ -406,7 +406,7 @@ export function DashboardClients({
                           assignedToName={r.assigned_to_name}
                           agents={assignableAgents}
                           canAssign={canAssign}
-                          disabled={exported}
+                          disabled={exported && !canDelete}
                           onError={setAssignErr}
                         />
                       ) : (

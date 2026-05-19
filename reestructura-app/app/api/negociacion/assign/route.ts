@@ -15,7 +15,7 @@ const assignBodySchema = z.object({
 
 async function authorizeAssign(
   supabase: ReturnType<typeof createClient>
-): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+): Promise<{ ok: true; isAdmin: boolean } | { ok: false; response: NextResponse }> {
   if (isDevAuthBypass()) {
     if (!isDevServerDataOverride()) {
       return {
@@ -29,7 +29,7 @@ async function authorizeAssign(
         ),
       };
     }
-    return { ok: true };
+    return { ok: true, isAdmin: true };
   }
 
   const {
@@ -53,7 +53,7 @@ async function authorizeAssign(
     };
   }
 
-  return { ok: true };
+  return { ok: true, isAdmin: role === "admin" };
 }
 
 export async function PATCH(request: Request) {
@@ -78,7 +78,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Negociación no encontrada" }, { status: 404 });
   }
 
-  if (isClienteExportado(neg.exported_at as string | null)) {
+  // Solo bloquear reasignación de exportados para no-admins
+  if (!auth.isAdmin && isClienteExportado(neg.exported_at as string | null)) {
     return NextResponse.json(
       { error: "Este cliente ya fue exportado y no admite cambios de asignación." },
       { status: 409 }
