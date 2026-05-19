@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Upload, Download, LogOut, UserPlus } from "lucide-react";
+import { LayoutDashboard, Upload, Download, LogOut, UserPlus, FileBarChart } from "lucide-react";
 
 import { signOut } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ type NavItem = {
   label: string;
   icon: LucideIcon;
   gestorOnly?: boolean;
+  adminOnly?: boolean;
 };
 
 const nav: NavItem[] = [
@@ -29,6 +30,12 @@ const nav: NavItem[] = [
     icon: Download,
     gestorOnly: true,
   },
+  {
+    href: "/gestor/reporte-diario",
+    label: "Reporte Diario",
+    icon: FileBarChart,
+    adminOnly: true,
+  },
 ];
 
 export function Sidebar({
@@ -39,6 +46,7 @@ export function Sidebar({
   role: UserRole;
 }) {
   const isGestor = role === "gestor" || role === "admin";
+  const isAdmin = role === "admin";
 
   return (
     <aside
@@ -60,6 +68,7 @@ export function Sidebar({
       <nav className="flex flex-1 flex-col gap-1 p-2">
         {nav.map((item) => {
           if (item.gestorOnly && !isGestor) return null;
+          if (item.adminOnly && !isAdmin) return null;
           const Icon = item.icon;
           return (
             <Link
