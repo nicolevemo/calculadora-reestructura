@@ -86,6 +86,7 @@ export type ClienteWorkspaceProps = {
     motivo_rechazo: string | null;
     notes: string | null;
     updated_at: string;
+    exported_at: string | null;
     bono_pronto_pago: boolean;
     assigned_to: string | null;
     assigned_to_name: string | null;
@@ -93,6 +94,7 @@ export type ClienteWorkspaceProps = {
   actividadLog: ActividadLogEntry[];
   assignableAgents: AssignableAgent[];
   canAssign: boolean;
+  isAdmin?: boolean;
 };
 
 function isCallStatus(s: string): s is CallStatus {
@@ -131,6 +133,7 @@ export function ClienteWorkspace({
   actividadLog,
   assignableAgents,
   canAssign,
+  isAdmin: _isAdmin = false,
 }: ClienteWorkspaceProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -320,6 +323,35 @@ export function ClienteWorkspace({
         </p>
       ) : null}
 
+      {negociacion.exported_at && negociacion.status === "aceptado" ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">⚠ Este cliente ya fue aceptado y exportado</p>
+          <p className="mt-0.5 text-amber-800">
+            Exportado el{" "}
+            {new Date(negociacion.exported_at).toLocaleString("es-MX", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            . Por favor corroborá los datos antes de modificar.
+          </p>
+        </div>
+      ) : negociacion.exported_at ? (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          Exportado el{" "}
+          {new Date(negociacion.exported_at).toLocaleString("es-MX", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+          . Podés seguir editando.
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <p className="text-sm capitalize text-muted-foreground">{todayMx()}</p>
@@ -398,6 +430,7 @@ export function ClienteWorkspace({
             intentos={negociacion.intentos}
             maxIntentos={RULES.MAX_INTENTOS}
             updatedAt={negociacion.updated_at}
+            exportedAt={negociacion.exported_at}
             entries={actividadLog}
           />
 

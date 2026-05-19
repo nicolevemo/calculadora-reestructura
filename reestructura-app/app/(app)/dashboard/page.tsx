@@ -113,6 +113,7 @@ export default async function DashboardPage() {
         rows={canRead ? rows : []}
         showGestorHint={false}
         canExportCsv={role === "gestor" || role === "admin"}
+        canDelete={role === "admin"}
         assignableAgents={assignableAgents}
         canAssign={canAssign}
         currentUserId={currentUserId}

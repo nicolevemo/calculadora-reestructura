@@ -4,7 +4,6 @@ import { ClienteWorkspace } from "@/components/cliente/cliente-workspace";
 import type { ActividadLogEntry } from "@/components/cliente/cliente-seguimiento-panel";
 import { listAssignableAgents } from "@/lib/assignable-agents";
 import { STATUS_ORDER } from "@/lib/constants";
-import { isClienteExportado } from "@/lib/cliente-export";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { getSessionProfile } from "@/lib/session-profile";
 import { createClient } from "@/lib/supabase/server";
@@ -42,8 +41,10 @@ export default async function ClientePage({ params }: { params: { id: string } }
 
   const supabase = createClient();
   let canAssign = false;
+  let isAdmin = false;
   if (isDevAuthBypass()) {
     canAssign = true;
+    isAdmin = true;
   } else {
     const {
       data: { user },
@@ -51,6 +52,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
     if (!user) redirect("/login");
     const sessionProfile = await getSessionProfile(supabase, user);
     canAssign = sessionProfile.role === "gestor" || sessionProfile.role === "admin";
+    isAdmin = sessionProfile.role === "admin";
   }
 
   const { data: cliente, error: e1 } = await supabase
@@ -72,9 +74,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
     .maybeSingle();
 
   if (e2 || !neg || !isCallStatus(neg.status as string)) notFound();
-  if (isClienteExportado(neg.exported_at as string | null)) {
-    redirect("/dashboard");
-  }
+  // Los exportados ya son accesibles; no redirigir.
 
   const { data: actividad, error: e3 } = await supabase
     .from("actividad_log")
@@ -127,6 +127,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
     motivo_rechazo: (neg.motivo_rechazo as string | null) ?? null,
     notes: (neg.notes as string | null) ?? null,
     updated_at: neg.updated_at as string,
+    exported_at: (neg.exported_at as string | null) ?? null,
     bono_pronto_pago: Boolean(neg.bono_pronto_pago),
     assigned_to: (neg.assigned_to as string | null) ?? null,
     assigned_to_name: assignedProfile,
@@ -174,6 +175,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
       actividadLog={actividadLog}
       assignableAgents={assignableAgents}
       canAssign={canAssign}
+      isAdmin={isAdmin}
     />
   );
 }

@@ -57,7 +57,7 @@ const s = StyleSheet.create({
   page: {
     backgroundColor: C.bg,
     paddingTop: 32,
-    paddingBottom: 32,
+    paddingBottom: 48,
     paddingHorizontal: 36,
     fontFamily: "Helvetica",
     fontSize: 9,
@@ -291,16 +291,16 @@ function fmtTimestamp(iso: string): string {
 // ─── reusable table ──────────────────────────────────────────
 function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string }) {
   const colW = {
-    nombre: "22%", af: "8%", plat: "8%",
-    saldo: "12%", pago: "12%", cond: "12%",
-    agente: "15%", estado: "11%",
+    nombre: "30%", af: "9%", plat: "9%",
+    saldo: "16%", pago: "16%", cond: "12%",
+    estado: "8%",
   };
   const totalSaldo = rows.reduce((s, r) => s + r.saldo_vencido, 0);
   const totalPago  = rows.reduce((s, r) => s + r.pago_intencion, 0);
   const totalCond  = rows.reduce((s, r) => s + r.condonacion, 0);
 
   return (
-    <View style={s.sectionBlock}>
+    <View style={s.sectionBlock} wrap={false}>
       <Text style={s.sectionTitle}>{title}</Text>
       {rows.length === 0 ? (
         <Text style={[s.bulletText, { color: C.muted }]}>Sin registros.</Text>
@@ -313,7 +313,6 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             <Text style={[s.colH, { width: colW.saldo, textAlign: "right" }]}>Saldo vencido</Text>
             <Text style={[s.colH, { width: colW.pago,  textAlign: "right" }]}>Pago intención</Text>
             <Text style={[s.colH, { width: colW.cond,  textAlign: "right" }]}>Condonación</Text>
-            <Text style={[s.colH, { width: colW.agente }]}>Asignado</Text>
             <Text style={[s.colH, { width: colW.estado, textAlign: "center" }]}>Estado</Text>
           </View>
           {rows.map((r, i) => {
@@ -327,7 +326,6 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
                 <Text style={[s.colVal, { width: colW.saldo, textAlign: "right" }]}>{fmtCurrency(r.saldo_vencido)}</Text>
                 <Text style={[s.colVal, { width: colW.pago,  textAlign: "right" }]}>{fmtCurrency(r.pago_intencion)}</Text>
                 <Text style={[s.colVal, { width: colW.cond,  textAlign: "right", color: C.green }]}>{fmtCurrency(r.condonacion)}</Text>
-                <Text style={[s.colVal, { width: colW.agente }]}>{r.assigned_to_name ?? "—"}</Text>
                 <View style={{ width: colW.estado, alignItems: "center" }}>
                   <View style={[s.statusBadge, { backgroundColor: `${color}22` }]}>
                     <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
@@ -337,13 +335,14 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             );
           })}
           <View style={s.tableRowTotal}>
-            <Text style={[s.colValBold, { width: colW.nombre }]}>TOTAL</Text>
+            <Text style={[s.colValBold, { width: colW.nombre }]}>
+              TOTAL — {rows.length} acuerdo{rows.length !== 1 ? "s" : ""}
+            </Text>
             <Text style={{ width: colW.af }} />
             <Text style={{ width: colW.plat }} />
             <Text style={[s.colValBold, { width: colW.saldo, textAlign: "right" }]}>{fmtCurrency(totalSaldo)}</Text>
             <Text style={[s.colValBold, { width: colW.pago,  textAlign: "right" }]}>{fmtCurrency(totalPago)}</Text>
             <Text style={[s.colValBold, { width: colW.cond,  textAlign: "right", color: C.green }]}>{fmtCurrency(totalCond)}</Text>
-            <Text style={[s.colVal, { width: colW.agente }]}>{rows.length} acuerdo{rows.length !== 1 ? "s" : ""}</Text>
             <Text style={{ width: colW.estado }} />
           </View>
         </>
@@ -365,7 +364,7 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
 
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" orientation="landscape" style={s.page}>
         {/* ── HEADER ── */}
         <View style={s.headerRow}>
           <View>
@@ -446,7 +445,7 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
 
         {/* ── ACTIVIDADES DEL DÍA ── */}
         {report.actividades.length > 0 && (
-          <View style={s.sectionBlock}>
+          <View style={s.sectionBlock} wrap={false}>
             <Text style={s.sectionTitle}>Resumen del día</Text>
             {report.actividades.map((a, i) => (
               <View key={i} style={s.bulletRow}>
@@ -471,7 +470,7 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
 
         {/* ── PRÓXIMOS PASOS ── */}
         {report.next_steps.length > 0 && (
-          <View style={s.sectionBlock}>
+          <View style={s.sectionBlock} wrap={false}>
             <Text style={s.sectionTitle}>Próximos pasos · Mañana</Text>
             <Text style={s.pronostico}>
               <Text style={s.pronosticoBold}>

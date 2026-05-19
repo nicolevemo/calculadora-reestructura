@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -38,6 +39,7 @@ export function DashboardClients({
   rows,
   showGestorHint,
   canExportCsv = false,
+  canDelete = false,
   assignableAgents = [],
   canAssign = false,
   currentUserId = null,
@@ -47,6 +49,8 @@ export function DashboardClients({
   showGestorHint?: boolean;
   /** Gestor/admin: selección + export POST que marca `exported_at` */
   canExportCsv?: boolean;
+  /** Solo admin: mostrar botón de eliminar cliente */
+  canDelete?: boolean;
   assignableAgents?: AssignableAgent[];
   canAssign?: boolean;
   currentUserId?: string | null;
@@ -61,6 +65,7 @@ export function DashboardClients({
   const [exportBusy, setExportBusy] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [assignErr, setAssignErr] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -194,7 +199,23 @@ export function DashboardClients({
     })),
   ];
 
-  /** Checkbox (solo gestor) + datos + Exportado (todos) */
+  const handleDelete = useCallback(async (id: string, nombre: string) => {
+    if (!window.confirm(`¿Eliminar a ${nombre} de la base de datos? Esta acción no se puede deshacer.`)) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/clientes/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(j.error ?? "Error al eliminar");
+      } else {
+        router.refresh();
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }, [router]);
+
+  /** Checkbox (solo gestor) + datos + Exportado (todos) + Eliminar (solo admin) */
   const colSpan = canExportCsv ? 13 : 12;
 
   const assignFilterButtons: { id: AssignFilter; label: string }[] = [
@@ -319,6 +340,7 @@ export function DashboardClients({
               <TableHead className="text-right">Pago intención</TableHead>
               <TableHead>Última actividad</TableHead>
               <TableHead>Exportado</TableHead>
+              {canDelete ? <TableHead className="w-12" /> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -333,18 +355,11 @@ export function DashboardClients({
                 const exported = isClienteExportado(r.exported_at);
                 const aceptadoExportado =
                   (r.status ?? "") === "aceptado" && exported;
-                const openDetail = () => {
-                  if (!exported) router.push(`/cliente/${r.id}`);
-                };
+                const openDetail = () => router.push(`/cliente/${r.id}`);
                 return (
                   <TableRow
                     key={r.id}
-                    className={
-                      exported
-                        ? "bg-muted/40 text-muted-foreground"
-                        : "cursor-pointer hover:bg-muted/50"
-                    }
-                    aria-disabled={exported}
+                    className="cursor-pointer hover:bg-muted/50"
                   >
                     {canExportCsv ? (
                       <TableCell
@@ -427,6 +442,20 @@ export function DashboardClients({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    {canDelete ? (
+                      <TableCell className="w-12 p-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingId === r.id}
+                          onClick={() => void handleDelete(r.id, r.nombre)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          title="Eliminar cliente"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })
@@ -436,8 +465,9 @@ export function DashboardClients({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Tip: hacé clic en una fila para abrir el detalle del cliente. Los exportados quedan bloqueados.{" "}
-        {canExportCsv ? "Usá la casilla para seleccionar sin abrir el detalle." : null}
+        Tip: hacé clic en una fila para abrir el detalle del cliente.{" "}
+        {canExportCsv ? "Usá la casilla para seleccionar sin abrir el detalle. " : null}
+        {canDelete ? "El ícono de papelera elimina el cliente definitivamente." : null}
       </p>
     </div>
   );

@@ -14,6 +14,7 @@ export type ActividadLogEntry = {
     assigned_to_anterior?: string | null;
     assigned_to_nuevo?: string | null;
     assigned_at?: string | null;
+    notes?: string | null;
   } | null;
   created_at: string;
   agente: {
@@ -26,6 +27,7 @@ type Props = {
   intentos: number;
   maxIntentos: number;
   updatedAt: string;
+  exportedAt?: string | null;
   entries: ActividadLogEntry[];
 };
 
@@ -41,7 +43,7 @@ function statusLabel(status: CallStatus | null | undefined) {
   return STATUS[status]?.label ?? status;
 }
 
-export function ClienteSeguimientoPanel({ intentos, maxIntentos, updatedAt, entries }: Props) {
+export function ClienteSeguimientoPanel({ intentos, maxIntentos, updatedAt, exportedAt, entries }: Props) {
   return (
     <section className="rounded-lg border bg-card p-4 text-sm shadow-sm">
       <div className="space-y-1">
@@ -59,6 +61,14 @@ export function ClienteSeguimientoPanel({ intentos, maxIntentos, updatedAt, entr
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Historial de eventos
         </p>
+
+        {exportedAt ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+            <span className="font-medium">Exportado a cartera:</span>{" "}
+            {fmtDateTime(exportedAt)}
+          </div>
+        ) : null}
+
         {entries.length === 0 ? (
           <p className="rounded-md border border-dashed bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
             Aún no hay cambios de estado registrados para este cliente.
@@ -73,13 +83,20 @@ export function ClienteSeguimientoPanel({ intentos, maxIntentos, updatedAt, entr
                       ? `Estado: ${statusLabel(entry.estado_anterior)} → ${statusLabel(entry.estado_nuevo)}`
                       : entry.accion === "assignment_change"
                         ? "Asignación actualizada"
-                        : entry.accion}
+                        : entry.accion === "nota"
+                          ? "Nota guardada"
+                          : entry.accion}
                   </p>
                   <time className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {fmtDateTime(entry.created_at)}
                   </time>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">Por {agentLabel(entry.agente)}</p>
+                {entry.accion === "nota" && entry.payload?.notes ? (
+                  <p className="mt-2 whitespace-pre-wrap rounded bg-muted/40 px-2 py-1.5 text-xs text-foreground">
+                    {entry.payload.notes}
+                  </p>
+                ) : null}
                 {entry.payload?.fecha_compromiso ? (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Fecha de compromiso: {fmtDate(entry.payload.fecha_compromiso)}

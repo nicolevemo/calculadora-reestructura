@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { calculate } from "@/lib/calculator";
-import { isClienteExportado } from "@/lib/cliente-export";
 import { RULES } from "@/lib/constants";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { createClient } from "@/lib/supabase/server";
@@ -95,7 +94,7 @@ export async function saveNegociacion(
 
     const { data: existing, error: ne } = await supabase
       .from("negociaciones")
-      .select("id, status, intentos, cliente_id, exported_at")
+      .select("id, status, intentos, cliente_id, exported_at, notes")
       .eq("id", input.negociacionId)
       .single();
 
@@ -103,13 +102,7 @@ export async function saveNegociacion(
       return { ok: false, error: "Negociación no encontrada" };
     }
 
-    if (isClienteExportado(existing.exported_at as string | null)) {
-      return {
-        ok: false,
-        error: "Este cliente ya fue exportado a cartera y no admite cambios.",
-      };
-    }
-
+    const existingNotes = (existing.notes as string | null) ?? null;
     const ci = toClientInput(cliente);
 
     const pi =
@@ -169,6 +162,19 @@ export async function saveNegociacion(
       .eq("id", input.negociacionId);
 
     if (up) return { ok: false, error: up.message };
+
+    // Si las notas cambiaron, insertar entrada en actividad_log para que aparezca en el historial
+    const newNotes = input.notes?.trim() || null;
+    if (newNotes && newNotes !== (existingNotes?.trim() || null)) {
+      await supabase.from("actividad_log").insert({
+        cliente_id: input.clienteId,
+        agente_id: lastActivityBy,
+        accion: "nota",
+        estado_anterior: null,
+        estado_nuevo: null,
+        payload: { notes: newNotes },
+      });
+    }
 
     revalidatePath(`/cliente/${input.clienteId}`);
     revalidatePath("/dashboard");
