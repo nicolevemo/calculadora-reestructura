@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSessionProfile } from "@/lib/session-profile";
+import { RULES } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { CallStatus } from "@/lib/types";
@@ -14,6 +15,12 @@ export type AceptadoCerradoRow = {
   pago_intencion: number;
   /** Igual a pago_intencion por las reglas del negocio. */
   condonacion: number;
+  /** saldo_reestructurar - 2 * pago_intencion */
+  deuda_post_condonacion: number;
+  /** min(TOPE_INCREMENTAL_RENTA, deuda_post / plazo) */
+  cc_aplicado: number;
+  /** Cargo complementario balloon */
+  balloon: number;
   status: "aceptado" | "cerrado";
   assigned_to_name: string | null;
 };
@@ -29,6 +36,12 @@ export type DailyReportSnapshot = {
   condonacion_hoy: number;
   /** Suma condonación de todos los actualmente 'aceptado'. */
   condonacion_aceptados: number;
+  /** Promedio condonación sobre todos los aceptados+cerrados. */
+  prom_condonacion: number;
+  /** Promedio deuda post condonación sobre todos los aceptados+cerrados. */
+  prom_deuda_post_cond: number;
+  /** Promedio CC aplicado solo para filas con balloon > 0. */
+  prom_csc_con_balloon: number;
   /** Número de clientes en estado 'cerrado' (caso cerrado sin pago). */
   count_cerrados: number;
   /** Suma de pago_intencion de clientes en flujo de pago (pendiente_firma + firmado + aplicado). */
@@ -84,16 +97,26 @@ function toAceptadoCerradoRow(
     adeudo: number;
     semana_siguiente: number;
     plataforma: string | null;
+    plazo_remanente: number;
   }
 ): AceptadoCerradoRow {
   const pi = Number(r.pago_intencion ?? 0);
+  const saldo = Number(cliente.adeudo) + Number(cliente.semana_siguiente);
+  const deuda_post = Math.max(0, saldo - pi - pi); // saldo - pago - condonacion
+  const plazo = Math.max(1, Number(cliente.plazo_remanente));
+  const csc_teorico = deuda_post / plazo;
+  const cc_aplicado = Math.min(RULES.TOPE_INCREMENTAL_RENTA, csc_teorico);
+  const balloon = Math.max(0, (csc_teorico - cc_aplicado) * plazo);
   return {
     nombre: cliente.nombre,
     af: cliente.af,
     plataforma: cliente.plataforma,
-    saldo_reestructurar: Number(cliente.adeudo) + Number(cliente.semana_siguiente),
+    saldo_reestructurar: saldo,
     pago_intencion: pi,
     condonacion: pi,
+    deuda_post_condonacion: deuda_post,
+    cc_aplicado,
+    balloon,
     status: (r.status as "aceptado" | "cerrado") ?? "aceptado",
     assigned_to_name: r.assigned_to_name ?? null,
   };
@@ -157,7 +180,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
       .from("negociaciones")
       .select(
         `pago_intencion, status, assigned_to_name:profiles!negociaciones_assigned_to_fkey(full_name),
-         clientes!inner(af, nombre, adeudo, semana_siguiente, plataforma)`
+         clientes!inner(af, nombre, adeudo, semana_siguiente, plataforma, plazo_remanente)`
       )
       .in("cliente_id", clienteIdsHoy)
       // Incluir también 'cerrado': un deal aceptado hoy puede haber sido cerrado en el mismo día
@@ -165,7 +188,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
 
     aceptados_hoy = (negHoy ?? []).map((r) => {
       const cliente = r.clientes as unknown as {
-        af: string; nombre: string; adeudo: number; semana_siguiente: number; plataforma: string | null;
+        af: string; nombre: string; adeudo: number; semana_siguiente: number; plataforma: string | null; plazo_remanente: number;
       };
       const agente = r.assigned_to_name as unknown as { full_name: string } | null;
       return toAceptadoCerradoRow(
@@ -180,13 +203,13 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     .from("negociaciones")
     .select(
       `pago_intencion, status, assigned_to_name:profiles!negociaciones_assigned_to_fkey(full_name),
-       clientes!inner(af, nombre, adeudo, semana_siguiente, plataforma)`
+       clientes!inner(af, nombre, adeudo, semana_siguiente, plataforma, plazo_remanente)`
     )
     .in("status", ["aceptado", "cerrado"]);
 
   const todos_aceptados_cerrados: AceptadoCerradoRow[] = (acCerRows ?? []).map((r) => {
     const cliente = r.clientes as unknown as {
-      af: string; nombre: string; adeudo: number; semana_siguiente: number; plataforma: string | null;
+      af: string; nombre: string; adeudo: number; semana_siguiente: number; plataforma: string | null; plazo_remanente: number;
     };
     const agente = r.assigned_to_name as unknown as { full_name: string } | null;
     return toAceptadoCerradoRow(
@@ -202,6 +225,19 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
   const condonacion_aceptados = todos_aceptados_cerrados
     .filter((r) => r.status === "aceptado")
     .reduce((sum, r) => sum + r.condonacion, 0);
+
+  // Promedios sobre todos los aceptados + cerrados
+  const n = todos_aceptados_cerrados.length;
+  const prom_condonacion = n > 0
+    ? Math.round(todos_aceptados_cerrados.reduce((s, r) => s + r.condonacion, 0) / n)
+    : 0;
+  const prom_deuda_post_cond = n > 0
+    ? Math.round(todos_aceptados_cerrados.reduce((s, r) => s + r.deuda_post_condonacion, 0) / n)
+    : 0;
+  const rowsConBalloon = todos_aceptados_cerrados.filter((r) => r.balloon > 0);
+  const prom_csc_con_balloon = rowsConBalloon.length > 0
+    ? Math.round(rowsConBalloon.reduce((s, r) => s + r.cc_aplicado, 0) / rowsConBalloon.length)
+    : 0;
 
   // Cerrados = casos cerrados sin pago (solo conteo)
   const count_cerrados = por_status["cerrado"] ?? 0;
@@ -231,6 +267,9 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     todos_aceptados_cerrados,
     condonacion_hoy,
     condonacion_aceptados,
+    prom_condonacion,
+    prom_deuda_post_cond,
+    prom_csc_con_balloon,
     count_cerrados,
     monto_pagado,
     count_pagados,

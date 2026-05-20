@@ -90,23 +90,29 @@ function AcCerTableUI({
     );
   }
 
-  const totalSaldo = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
-  const totalPago  = rows.reduce((s, r) => s + r.pago_intencion, 0);
-  const totalCond  = rows.reduce((s, r) => s + r.condonacion, 0);
+  const totalSaldo   = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
+  const totalPago    = rows.reduce((s, r) => s + r.pago_intencion, 0);
+  const totalCond    = rows.reduce((s, r) => s + r.condonacion, 0);
+  const totalDeuda   = rows.reduce((s, r) => s + r.deuda_post_condonacion, 0);
+  const totalCC      = rows.reduce((s, r) => s + r.cc_aplicado, 0);
+  const totalBalloon = rows.reduce((s, r) => s + r.balloon, 0);
 
   return (
     <div className="space-y-1">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
-      <div className="overflow-hidden rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Cliente</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">AF</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Plataforma</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Saldo a reestructurar</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Pago intención</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Plat.</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Saldo</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Pago int.</th>
               <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Condonación</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Deuda post cond.</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">CC Aplicado</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Balloon</th>
               <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Estado</th>
             </tr>
           </thead>
@@ -121,6 +127,9 @@ function AcCerTableUI({
                   <td className="px-3 py-2 text-right">{fmtCurrency(r.saldo_reestructurar)}</td>
                   <td className="px-3 py-2 text-right">{fmtCurrency(r.pago_intencion)}</td>
                   <td className="px-3 py-2 text-right font-medium text-green-700">{fmtCurrency(r.condonacion)}</td>
+                  <td className="px-3 py-2 text-right text-slate-700">{fmtCurrency(r.deuda_post_condonacion)}</td>
+                  <td className="px-3 py-2 text-right text-blue-700">{fmtCurrency(r.cc_aplicado)}</td>
+                  <td className="px-3 py-2 text-right text-amber-700">{r.balloon > 0 ? fmtCurrency(r.balloon) : "—"}</td>
                   <td className="px-3 py-2 text-center">
                     <Badge
                       variant="outline"
@@ -139,6 +148,9 @@ function AcCerTableUI({
               <td className="px-3 py-2 text-right">{fmtCurrency(totalSaldo)}</td>
               <td className="px-3 py-2 text-right">{fmtCurrency(totalPago)}</td>
               <td className="px-3 py-2 text-right text-green-700">{fmtCurrency(totalCond)}</td>
+              <td className="px-3 py-2 text-right">{fmtCurrency(totalDeuda)}</td>
+              <td className="px-3 py-2 text-right text-blue-700">{fmtCurrency(totalCC)}</td>
+              <td className="px-3 py-2 text-right text-amber-700">{totalBalloon > 0 ? fmtCurrency(totalBalloon) : "—"}</td>
               <td />
             </tr>
           </tbody>
@@ -332,7 +344,7 @@ export function ReporteDiarioForm() {
           </div>
 
           {/* ── 2. Indicadores ── */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
             <div className="rounded-lg border bg-amber-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-amber-700">
                 Condonación del día
@@ -346,6 +358,22 @@ export function ReporteDiarioForm() {
               </p>
               <p className="mt-1 text-2xl font-bold text-green-800">{fmtCurrency(snapshot.condonacion_aceptados)}</p>
               <p className="mt-1 text-xs text-green-600/80">Comprometidos (acumulado)</p>
+            </div>
+            <div className="rounded-lg border bg-green-50/60 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-green-700">
+                Prom. Condonación
+              </p>
+              <p className="mt-1 text-2xl font-bold text-green-800">{fmtCurrency(snapshot.prom_condonacion ?? 0)}</p>
+              <p className="mt-1 text-xs text-green-600/80">Promedio por acuerdo</p>
+            </div>
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
+                Prom. Deuda Post Cond.
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">{fmtCurrency(snapshot.prom_deuda_post_cond ?? 0)}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Promedio · {snapshot.prom_csc_con_balloon > 0 ? `CSC c/balloon: ${fmtCurrency(snapshot.prom_csc_con_balloon)}` : "Sin balloon"}
+              </p>
             </div>
             <div className="rounded-lg border bg-slate-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-slate-600">

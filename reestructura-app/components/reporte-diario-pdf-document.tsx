@@ -295,14 +295,19 @@ function fmtTimestamp(iso: string): string {
 // ─── component ───────────────────────────────────────────────
 // ─── reusable table ──────────────────────────────────────────
 function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string }) {
+  // Landscape A4 ≈ 770pt content width — 10 columns
   const colW = {
-    nombre: "30%", af: "9%", plat: "9%",
-    saldo: "17%", pago: "17%", cond: "13%",
-    estado: "5%",
+    nombre: "22%", af: "7%", plat: "7%",
+    saldo: "11%", pago: "10%", cond: "10%",
+    deuda: "11%", cc: "9%", balloon: "9%",
+    estado: "4%",
   };
-  const totalSaldo = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
-  const totalPago  = rows.reduce((s, r) => s + r.pago_intencion, 0);
-  const totalCond  = rows.reduce((s, r) => s + r.condonacion, 0);
+  const totalSaldo   = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
+  const totalPago    = rows.reduce((s, r) => s + r.pago_intencion, 0);
+  const totalCond    = rows.reduce((s, r) => s + r.condonacion, 0);
+  const totalDeuda   = rows.reduce((s, r) => s + r.deuda_post_condonacion, 0);
+  const totalCC      = rows.reduce((s, r) => s + r.cc_aplicado, 0);
+  const totalBalloon = rows.reduce((s, r) => s + r.balloon, 0);
 
   return (
     <View style={s.sectionBlock} wrap={false}>
@@ -315,9 +320,12 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             <Text style={[s.colH, { width: colW.nombre }]}>Cliente</Text>
             <Text style={[s.colH, { width: colW.af }]}>AF</Text>
             <Text style={[s.colH, { width: colW.plat }]}>Plat.</Text>
-            <Text style={[s.colH, { width: colW.saldo, textAlign: "right" }]}>Saldo a reestructurar</Text>
-            <Text style={[s.colH, { width: colW.pago,  textAlign: "right" }]}>Pago intención</Text>
-            <Text style={[s.colH, { width: colW.cond,  textAlign: "right" }]}>Condonación</Text>
+            <Text style={[s.colH, { width: colW.saldo,  textAlign: "right" }]}>Saldo</Text>
+            <Text style={[s.colH, { width: colW.pago,   textAlign: "right" }]}>Pago int.</Text>
+            <Text style={[s.colH, { width: colW.cond,   textAlign: "right" }]}>Cond.</Text>
+            <Text style={[s.colH, { width: colW.deuda,  textAlign: "right" }]}>Deuda post</Text>
+            <Text style={[s.colH, { width: colW.cc,     textAlign: "right" }]}>CC Apl.</Text>
+            <Text style={[s.colH, { width: colW.balloon,textAlign: "right" }]}>Balloon</Text>
             <Text style={[s.colH, { width: colW.estado, textAlign: "center" }]}>Est.</Text>
           </View>
           {rows.map((r, i) => {
@@ -328,9 +336,14 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
                 <Text style={[s.colVal, { width: colW.nombre }]}>{r.nombre}</Text>
                 <Text style={[s.colVal, { width: colW.af }]}>{r.af}</Text>
                 <Text style={[s.colVal, { width: colW.plat }]}>{r.plataforma ?? "—"}</Text>
-                <Text style={[s.colVal, { width: colW.saldo, textAlign: "right" }]}>{fmtCurrency(r.saldo_reestructurar)}</Text>
-                <Text style={[s.colVal, { width: colW.pago,  textAlign: "right" }]}>{fmtCurrency(r.pago_intencion)}</Text>
-                <Text style={[s.colVal, { width: colW.cond,  textAlign: "right", color: C.green }]}>{fmtCurrency(r.condonacion)}</Text>
+                <Text style={[s.colVal, { width: colW.saldo,  textAlign: "right" }]}>{fmtCurrency(r.saldo_reestructurar)}</Text>
+                <Text style={[s.colVal, { width: colW.pago,   textAlign: "right" }]}>{fmtCurrency(r.pago_intencion)}</Text>
+                <Text style={[s.colVal, { width: colW.cond,   textAlign: "right", color: C.green }]}>{fmtCurrency(r.condonacion)}</Text>
+                <Text style={[s.colVal, { width: colW.deuda,  textAlign: "right" }]}>{fmtCurrency(r.deuda_post_condonacion)}</Text>
+                <Text style={[s.colVal, { width: colW.cc,     textAlign: "right", color: C.blue }]}>{fmtCurrency(r.cc_aplicado)}</Text>
+                <Text style={[s.colVal, { width: colW.balloon,textAlign: "right", color: C.amber }]}>
+                  {r.balloon > 0 ? fmtCurrency(r.balloon) : "—"}
+                </Text>
                 <View style={{ width: colW.estado, alignItems: "center" }}>
                   <View style={[s.statusBadge, { backgroundColor: `${color}22` }]}>
                     <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
@@ -345,9 +358,14 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             </Text>
             <Text style={{ width: colW.af }} />
             <Text style={{ width: colW.plat }} />
-            <Text style={[s.colValBold, { width: colW.saldo, textAlign: "right" }]}>{fmtCurrency(totalSaldo)}</Text>
-            <Text style={[s.colValBold, { width: colW.pago,  textAlign: "right" }]}>{fmtCurrency(totalPago)}</Text>
-            <Text style={[s.colValBold, { width: colW.cond,  textAlign: "right", color: C.green }]}>{fmtCurrency(totalCond)}</Text>
+            <Text style={[s.colValBold, { width: colW.saldo,  textAlign: "right" }]}>{fmtCurrency(totalSaldo)}</Text>
+            <Text style={[s.colValBold, { width: colW.pago,   textAlign: "right" }]}>{fmtCurrency(totalPago)}</Text>
+            <Text style={[s.colValBold, { width: colW.cond,   textAlign: "right", color: C.green }]}>{fmtCurrency(totalCond)}</Text>
+            <Text style={[s.colValBold, { width: colW.deuda,  textAlign: "right" }]}>{fmtCurrency(totalDeuda)}</Text>
+            <Text style={[s.colValBold, { width: colW.cc,     textAlign: "right", color: C.blue }]}>{fmtCurrency(totalCC)}</Text>
+            <Text style={[s.colValBold, { width: colW.balloon,textAlign: "right", color: C.amber }]}>
+              {totalBalloon > 0 ? fmtCurrency(totalBalloon) : "—"}
+            </Text>
             <Text style={{ width: colW.estado }} />
           </View>
         </>
@@ -431,6 +449,20 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
             <Text style={s.condLabel}>Condonación Aceptados</Text>
             <Text style={s.condValue}>{fmtCurrency(snap.condonacion_aceptados ?? 0)}</Text>
             <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Comprometidos</Text>
+          </View>
+          <View style={s.condCard}>
+            <Text style={s.condLabel}>Prom. Condonación</Text>
+            <Text style={[s.condValue, { color: C.green, fontSize: 13 }]}>{fmtCurrency(snap.prom_condonacion ?? 0)}</Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Promedio por acuerdo</Text>
+          </View>
+          <View style={s.condCard}>
+            <Text style={s.condLabel}>Prom. Deuda Post Cond.</Text>
+            <Text style={[s.condValue, { color: C.dim, fontSize: 13 }]}>{fmtCurrency(snap.prom_deuda_post_cond ?? 0)}</Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>
+              {(snap.prom_csc_con_balloon ?? 0) > 0
+                ? `CSC c/balloon: ${fmtCurrency(snap.prom_csc_con_balloon ?? 0)}`
+                : "Sin balloon"}
+            </Text>
           </View>
           <View style={s.condCard}>
             <Text style={s.condLabel}>Cerrados</Text>
