@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "installCommand": "npm install --prefix reestructura-app",
+  "buildCommand": "npm run build --prefix reestructura-app",
+  "outputDirectory": "reestructura-app/.next"
+}
