@@ -28,6 +28,8 @@ type Props = {
   isAboveMax: boolean;
   fechaCompromiso: string;
   onFechaCompromisoChange: (value: string) => void;
+  /** Cuando true, si no hay pago guardado el input arranca en $0 en vez del mínimo */
+  defaultZero?: boolean;
 };
 
 /**
@@ -56,20 +58,23 @@ export function PagoIntencionBlock({
   isAboveMax,
   fechaCompromiso,
   onFechaCompromisoChange,
+  defaultZero = false,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const onAmountChangeRef = useRef(onAmountChange);
-  const limitsRef = useRef({ min, max, initialPago });
-  limitsRef.current = { min, max, initialPago };
+  const limitsRef = useRef({ min, max, initialPago, defaultZero });
+  limitsRef.current = { min, max, initialPago, defaultZero };
   onAmountChangeRef.current = onAmountChange;
 
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    const { min: minLimit, max: maxLimit, initialPago: savedPago } = limitsRef.current;
-    let start = minLimit;
+    const { min: minLimit, max: maxLimit, initialPago: savedPago, defaultZero: zero } = limitsRef.current;
+    let start: number;
     if (savedPago != null && Number.isFinite(savedPago) && savedPago > 0) {
       start = clamp(savedPago, minLimit, maxLimit);
+    } else {
+      start = zero ? 0 : minLimit;
     }
     el.value = String(start);
     onAmountChangeRef.current(start);

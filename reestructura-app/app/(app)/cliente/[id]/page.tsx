@@ -68,7 +68,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
   const { data: neg, error: e2 } = await supabase
     .from("negociaciones")
     .select(
-      "id, cliente_id, status, intentos, pago_intencion, fecha_compromiso, motivo_rechazo, notes, updated_at, bono_pronto_pago, exported_at, assigned_to, assigned_profile:profiles!assigned_to(full_name)"
+      "id, cliente_id, status, intentos, pago_intencion, fecha_compromiso, motivo_rechazo, motivo_cierre, fecha_pago, notes, updated_at, bono_pronto_pago, exported_at, assigned_to, assigned_profile:profiles!assigned_to(full_name)"
     )
     .eq("cliente_id", id)
     .maybeSingle();
@@ -125,6 +125,8 @@ export default async function ClientePage({ params }: { params: { id: string } }
     pago_intencion: numNullable(neg.pago_intencion),
     fecha_compromiso: (neg.fecha_compromiso as string | null) ?? null,
     motivo_rechazo: (neg.motivo_rechazo as string | null) ?? null,
+    motivo_cierre: (neg.motivo_cierre as string | null) ?? null,
+    fecha_pago: (neg.fecha_pago as string | null) ?? null,
     notes: (neg.notes as string | null) ?? null,
     updated_at: neg.updated_at as string,
     exported_at: (neg.exported_at as string | null) ?? null,

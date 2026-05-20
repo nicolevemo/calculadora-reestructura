@@ -28,15 +28,17 @@ const C = {
 };
 
 const STATUS_COLORS: Record<CallStatus, string> = {
-  listo_contactar: C.slate,
-  sin_respuesta:   C.amber,
-  en_negociacion:  C.blue,
-  aceptado:        C.green,
-  rechazado:       C.red,
+  listo_contactar:   C.slate,
+  sin_respuesta:     C.amber,
+  en_negociacion:    C.blue,
+  aceptado:          C.green,
+  rechazado:         C.red,
   necesita_revision: C.purple,
-  cerrado:         C.muted,
+  cerrado:           C.muted,
+  pendiente_firma:   C.blue,
+  firmado:           C.accentLight,
+  aplicado:          C.green,
 };
-
 
 const STATUS_LABELS_PDF: Record<CallStatus, string> = {
   listo_contactar:   "Sin contacto",
@@ -46,10 +48,13 @@ const STATUS_LABELS_PDF: Record<CallStatus, string> = {
   rechazado:         "Rechazados",
   necesita_revision: "En revisión",
   cerrado:           "Cerrados",
+  pendiente_firma:   "Pend. Firma",
+  firmado:           "Firmado",
+  aplicado:          "Aplicado",
 };
 
 const ACTIVE_STATUSES_PDF: CallStatus[] = [
-  "sin_respuesta", "en_negociacion", "aceptado", "necesita_revision",
+  "sin_respuesta", "en_negociacion", "aceptado", "necesita_revision", "rechazado",
 ];
 
 // ─── styles ──────────────────────────────────────────────────
@@ -221,8 +226,8 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: C.surface,
     borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 9,
   },
   condLabel: {
     fontSize: 7.5,
@@ -292,10 +297,10 @@ function fmtTimestamp(iso: string): string {
 function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string }) {
   const colW = {
     nombre: "30%", af: "9%", plat: "9%",
-    saldo: "16%", pago: "16%", cond: "12%",
-    estado: "8%",
+    saldo: "17%", pago: "17%", cond: "13%",
+    estado: "5%",
   };
-  const totalSaldo = rows.reduce((s, r) => s + r.saldo_vencido, 0);
+  const totalSaldo = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
   const totalPago  = rows.reduce((s, r) => s + r.pago_intencion, 0);
   const totalCond  = rows.reduce((s, r) => s + r.condonacion, 0);
 
@@ -310,20 +315,20 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             <Text style={[s.colH, { width: colW.nombre }]}>Cliente</Text>
             <Text style={[s.colH, { width: colW.af }]}>AF</Text>
             <Text style={[s.colH, { width: colW.plat }]}>Plat.</Text>
-            <Text style={[s.colH, { width: colW.saldo, textAlign: "right" }]}>Saldo vencido</Text>
+            <Text style={[s.colH, { width: colW.saldo, textAlign: "right" }]}>Saldo a reestructurar</Text>
             <Text style={[s.colH, { width: colW.pago,  textAlign: "right" }]}>Pago intención</Text>
             <Text style={[s.colH, { width: colW.cond,  textAlign: "right" }]}>Condonación</Text>
-            <Text style={[s.colH, { width: colW.estado, textAlign: "center" }]}>Estado</Text>
+            <Text style={[s.colH, { width: colW.estado, textAlign: "center" }]}>Est.</Text>
           </View>
           {rows.map((r, i) => {
             const color = r.status === "aceptado" ? C.green : C.muted;
-            const label = r.status === "aceptado" ? "Aceptado" : "Cerrado";
+            const label = r.status === "aceptado" ? "Ac." : "Ce.";
             return (
               <View key={i} style={s.tableRow}>
                 <Text style={[s.colVal, { width: colW.nombre }]}>{r.nombre}</Text>
                 <Text style={[s.colVal, { width: colW.af }]}>{r.af}</Text>
-                <Text style={[s.colVal, { width: colW.plat }]}>{r.originacion_vehiculo ?? "—"}</Text>
-                <Text style={[s.colVal, { width: colW.saldo, textAlign: "right" }]}>{fmtCurrency(r.saldo_vencido)}</Text>
+                <Text style={[s.colVal, { width: colW.plat }]}>{r.plataforma ?? "—"}</Text>
+                <Text style={[s.colVal, { width: colW.saldo, textAlign: "right" }]}>{fmtCurrency(r.saldo_reestructurar)}</Text>
                 <Text style={[s.colVal, { width: colW.pago,  textAlign: "right" }]}>{fmtCurrency(r.pago_intencion)}</Text>
                 <Text style={[s.colVal, { width: colW.cond,  textAlign: "right", color: C.green }]}>{fmtCurrency(r.condonacion)}</Text>
                 <View style={{ width: colW.estado, alignItems: "center" }}>
@@ -415,7 +420,7 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
           ))}
         </View>
 
-        {/* ── CONDONACIÓN + CONVERSIÓN ── */}
+        {/* ── INDICADORES ── */}
         <View style={s.condRow}>
           <View style={s.condCard}>
             <Text style={s.condLabel}>Condonación del día</Text>
@@ -428,9 +433,18 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
             <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Comprometidos</Text>
           </View>
           <View style={s.condCard}>
-            <Text style={s.condLabel}>Condonación Cerrados</Text>
-            <Text style={[s.condValue, { color: C.slate }]}>{fmtCurrency(snap.condonacion_cerrados ?? 0)}</Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Pagaron</Text>
+            <Text style={s.condLabel}>Cerrados</Text>
+            <Text style={[s.condValue, { color: C.slate, fontSize: 20 }]}>
+              {snap.count_cerrados ?? 0}
+            </Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Sin pago</Text>
+          </View>
+          <View style={s.condCard}>
+            <Text style={s.condLabel}>Pagado</Text>
+            <Text style={[s.condValue, { color: C.blue }]}>{fmtCurrency(snap.monto_pagado ?? 0)}</Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>
+              {snap.count_pagados ?? 0} clientes · pago intención
+            </Text>
           </View>
           <View style={s.condCard}>
             <Text style={s.condLabel}>Conversión</Text>
@@ -438,7 +452,7 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
               {snap.conversion_pct ?? 0}%
             </Text>
             <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>
-              Cerr. / (Acept. + Cerr.)
+              Pagados / (Acept. + Pag.)
             </Text>
           </View>
         </View>

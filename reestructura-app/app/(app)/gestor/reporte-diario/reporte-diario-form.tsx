@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Status = "idle" | "loading" | "saving" | "downloading" | "error";
+type PageStatus = "idle" | "loading" | "saving" | "downloading" | "error";
 
 // Fecha de hoy en hora México CDT (UTC-5)
 const TODAY = (() => {
@@ -47,6 +47,7 @@ const PILL_LABELS: Record<string, string> = {
   en_negociacion:    "En negociación",
   aceptado:          "Aceptados",
   necesita_revision: "En revisión",
+  rechazado:         "Rechazados",
 };
 
 const PILL_COLORS: Record<string, string> = {
@@ -55,6 +56,7 @@ const PILL_COLORS: Record<string, string> = {
   en_negociacion:    "text-blue-700",
   aceptado:          "text-green-700",
   necesita_revision: "text-purple-700",
+  rechazado:         "text-red-700",
 };
 
 const PILL_BG: Record<string, string> = {
@@ -63,10 +65,11 @@ const PILL_BG: Record<string, string> = {
   en_negociacion:    "bg-blue-50 border-blue-200",
   aceptado:          "bg-green-50 border-green-200",
   necesita_revision: "bg-purple-50 border-purple-200",
+  rechazado:         "bg-red-50 border-red-200",
 };
 
 // Statuses that count as "llamadas activas"
-const ACTIVE_STATUSES = ["sin_respuesta", "en_negociacion", "aceptado", "necesita_revision"] as const;
+const ACTIVE_STATUSES = ["sin_respuesta", "en_negociacion", "aceptado", "necesita_revision", "rechazado"] as const;
 
 // ── Acuerdos table ──────────────────────────────────────────────────────────
 function AcCerTableUI({
@@ -87,7 +90,7 @@ function AcCerTableUI({
     );
   }
 
-  const totalSaldo = rows.reduce((s, r) => s + r.saldo_vencido, 0);
+  const totalSaldo = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
   const totalPago  = rows.reduce((s, r) => s + r.pago_intencion, 0);
   const totalCond  = rows.reduce((s, r) => s + r.condonacion, 0);
 
@@ -101,10 +104,9 @@ function AcCerTableUI({
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Cliente</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">AF</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Plataforma</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Saldo vencido</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Saldo a reestructurar</th>
               <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Pago intención</th>
               <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Condonación</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Asignado</th>
               <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Estado</th>
             </tr>
           </thead>
@@ -115,11 +117,10 @@ function AcCerTableUI({
                 <tr key={i} className="border-b last:border-0">
                   <td className="px-3 py-2">{r.nombre}</td>
                   <td className="px-3 py-2 text-muted-foreground">{r.af}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{r.originacion_vehiculo ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{fmtCurrency(r.saldo_vencido)}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{r.plataforma ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">{fmtCurrency(r.saldo_reestructurar)}</td>
                   <td className="px-3 py-2 text-right">{fmtCurrency(r.pago_intencion)}</td>
                   <td className="px-3 py-2 text-right font-medium text-green-700">{fmtCurrency(r.condonacion)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{r.assigned_to_name ?? "—"}</td>
                   <td className="px-3 py-2 text-center">
                     <Badge
                       variant="outline"
@@ -134,11 +135,11 @@ function AcCerTableUI({
               );
             })}
             <tr className="bg-muted/30 font-semibold">
-              <td className="px-3 py-2" colSpan={3}>Total</td>
+              <td className="px-3 py-2" colSpan={3}>Total — {rows.length} acuerdos</td>
               <td className="px-3 py-2 text-right">{fmtCurrency(totalSaldo)}</td>
               <td className="px-3 py-2 text-right">{fmtCurrency(totalPago)}</td>
               <td className="px-3 py-2 text-right text-green-700">{fmtCurrency(totalCond)}</td>
-              <td className="px-3 py-2" colSpan={2}>{rows.length} acuerdos</td>
+              <td />
             </tr>
           </tbody>
         </table>
@@ -149,16 +150,15 @@ function AcCerTableUI({
 
 // ── Main form ───────────────────────────────────────────────────────────────
 export function ReporteDiarioForm() {
-  const [status, setStatus] = useState<Status>("loading");
+  const [status, setStatus] = useState<PageStatus>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isLive, setIsLive] = useState(true);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   const [actividades, setActividades] = useState("");
   const [nextSteps, setNextSteps] = useState("");
   const [snapshot, setSnapshot] = useState<DailyReportSnapshot | null>(null);
 
-  // ── Load ──────────────────────────────────────────────────────────────────
+  // ── Load: siempre datos vivos + textos guardados si existen ───────────────
   const loadReport = useCallback(async () => {
     setStatus("loading");
     setErrorMsg(null);
@@ -166,18 +166,11 @@ export function ReporteDiarioForm() {
       const res = await fetch(`/api/daily-report?date=${TODAY}`);
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
-
-      if (json.live) {
-        setIsLive(true);
-        setSnapshot(json.snapshot as DailyReportSnapshot);
-        setSavedAt(null);
-      } else {
-        const report = json.report as DailyReport;
-        setIsLive(false);
-        setSnapshot(report.snapshot_data as DailyReportSnapshot);
-        setActividades((report.actividades ?? []).join("\n"));
-        setNextSteps((report.next_steps ?? []).join("\n"));
-        setSavedAt(report.generated_at);
+      setSnapshot(json.snapshot as DailyReportSnapshot);
+      if (json.savedTexts) {
+        setActividades((json.savedTexts.actividades ?? []).join("\n"));
+        setNextSteps((json.savedTexts.next_steps ?? []).join("\n"));
+        setSavedAt(json.savedTexts.saved_at ?? null);
       }
       setStatus("idle");
     } catch (e) {
@@ -188,7 +181,7 @@ export function ReporteDiarioForm() {
 
   useEffect(() => { loadReport(); }, [loadReport]);
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Save: guarda solo actividades + next_steps ────────────────────────────
   async function handleSave() {
     setStatus("saving");
     setErrorMsg(null);
@@ -206,8 +199,6 @@ export function ReporteDiarioForm() {
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
       const report = json.report as DailyReport;
-      setIsLive(false);
-      setSnapshot(report.snapshot_data as DailyReportSnapshot);
       setSavedAt(report.generated_at);
       setStatus("idle");
     } catch (e) {
@@ -216,15 +207,16 @@ export function ReporteDiarioForm() {
     }
   }
 
-  // ── Download PDF ──────────────────────────────────────────────────────────
+  // ── Download PDF: datos vivos + timestamp del momento de exportar ─────────
   async function handleDownload() {
     if (!snapshot) return;
     setStatus("downloading");
     try {
+      const exportedAt = new Date().toISOString();
       const report: DailyReport = {
         id: "preview",
         report_date: TODAY,
-        generated_at: savedAt ?? new Date().toISOString(),
+        generated_at: exportedAt,
         generated_by: null,
         horario_inicio: "",
         horario_fin: "",
@@ -269,13 +261,11 @@ export function ReporteDiarioForm() {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
         <div>
           <p className="text-base font-semibold">{formatDateEs(TODAY)}</p>
-          {savedAt ? (
-            <p className="text-xs text-muted-foreground">
-              Guardado: {new Date(savedAt).toLocaleString("es-MX")}
-            </p>
-          ) : (
-            <p className="text-xs text-amber-600">Datos en vivo — no guardado aún</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Datos en vivo · {savedAt
+              ? `Texto guardado: ${new Date(savedAt).toLocaleString("es-MX")}`
+              : "Textos no guardados aún"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={loadReport} disabled={isBusy}>
@@ -341,14 +331,14 @@ export function ReporteDiarioForm() {
             </div>
           </div>
 
-          {/* ── 2. Condonación + Conversión cards ── */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {/* ── 2. Indicadores ── */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <div className="rounded-lg border bg-amber-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-amber-700">
                 Condonación del día
               </p>
               <p className="mt-1 text-2xl font-bold text-amber-800">{fmtCurrency(snapshot.condonacion_hoy)}</p>
-              <p className="mt-1 text-xs text-amber-600/80">Acuerdos aceptados hoy</p>
+              <p className="mt-1 text-xs text-amber-600/80">Aceptados hoy</p>
             </div>
             <div className="rounded-lg border bg-green-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-green-700">
@@ -359,10 +349,19 @@ export function ReporteDiarioForm() {
             </div>
             <div className="rounded-lg border bg-slate-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
-                Condonación Cerrados
+                Cerrados
               </p>
-              <p className="mt-1 text-2xl font-bold text-slate-800">{fmtCurrency(snapshot.condonacion_cerrados)}</p>
-              <p className="mt-1 text-xs text-slate-500">Pagaron (acumulado)</p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">{snapshot.count_cerrados ?? 0}</p>
+              <p className="mt-1 text-xs text-slate-500">Casos cerrados sin pago</p>
+            </div>
+            <div className="rounded-lg border bg-blue-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-blue-700">
+                Pagado
+              </p>
+              <p className="mt-1 text-2xl font-bold text-blue-800">{fmtCurrency(snapshot.monto_pagado ?? 0)}</p>
+              <p className="mt-1 text-xs text-blue-600/80">
+                Pago de intención · {snapshot.count_pagados ?? 0} cliente{(snapshot.count_pagados ?? 0) !== 1 ? "s" : ""}
+              </p>
             </div>
             <div className="rounded-lg border bg-indigo-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-indigo-700">
@@ -370,8 +369,8 @@ export function ReporteDiarioForm() {
               </p>
               <p className="mt-1 text-3xl font-bold text-indigo-800">{snapshot.conversion_pct}%</p>
               <p className="mt-1 text-xs text-indigo-600/80">
-                Cerrados / (Acept. + Cerr.) ·{" "}
-                {(snapshot.por_status["aceptado"] ?? 0) + (snapshot.por_status["cerrado"] ?? 0)} acuerdos
+                Pagados / (Acept. + Pagados) ·{" "}
+                {(snapshot.por_status["aceptado"] ?? 0) + (snapshot.count_pagados ?? 0)} acuerdos
               </p>
             </div>
           </div>
@@ -432,9 +431,9 @@ export function ReporteDiarioForm() {
         </div>
       </div>
 
-      {isLive && snapshot && (
+      {snapshot && (
         <p className="text-xs text-muted-foreground">
-          Datos en vivo. Guardá el reporte para fijar el snapshot antes de distribuir el PDF.
+          Los datos siempre son en vivo. El PDF lleva el timestamp del momento de exportación.
         </p>
       )}
     </div>

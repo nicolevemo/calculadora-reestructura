@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { calculate } from "@/lib/calculator";
-import { RULES } from "@/lib/constants";
+import { PAGADO_STATUSES, RULES } from "@/lib/constants";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
+import { getSessionProfile } from "@/lib/session-profile";
 import { createClient } from "@/lib/supabase/server";
 import type { CalculatorClientInput, CallStatus } from "@/lib/types";
 
@@ -17,6 +18,9 @@ const CALL_STATUSES: [CallStatus, ...CallStatus[]] = [
   "rechazado",
   "necesita_revision",
   "cerrado",
+  "pendiente_firma",
+  "firmado",
+  "aplicado",
 ];
 
 const saveNegociacionSchema = z.object({
@@ -26,6 +30,8 @@ const saveNegociacionSchema = z.object({
   pago_intencion: z.number().finite().nullable(),
   fecha_compromiso: z.string().nullable(),
   motivo_rechazo: z.string().max(4000).nullable(),
+  motivo_cierre: z.string().max(4000).nullable(),
+  fecha_pago: z.string().nullable(),
   notes: z.string().max(8000).nullable(),
   bono_pronto_pago: z.coerce.boolean(),
 });
@@ -69,17 +75,17 @@ export async function saveNegociacion(
      * Si el usuario existe en Auth pero aún no tiene fila en `profiles`, guardar su UUID rompe el FK.
      */
     let lastActivityBy: string | null = null;
+    let userRole: string | null = null;
     if (!isDevAuthBypass() || !isDevServerDataOverride()) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return { ok: false, error: "No autenticado" };
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-      lastActivityBy = profile?.id ?? null;
+      const sessionProfile = await getSessionProfile(supabase, user);
+      lastActivityBy = sessionProfile.id ?? null;
+      userRole = sessionProfile.role;
+    } else {
+      userRole = "admin";
     }
 
     const { data: cliente, error: ce } = await supabase
@@ -138,6 +144,25 @@ export async function saveNegociacion(
       return { ok: false, error: "Completá el motivo de rechazo." };
     }
 
+    // Cerrado: requiere motivo de cierre (ya no significa pago)
+    if (input.status === "cerrado" && !input.motivo_cierre?.trim()) {
+      return { ok: false, error: "Completá el motivo de cierre antes de cerrar el caso." };
+    }
+
+    // Flujo de pago: requiere fecha de pago; solo gestor/admin pueden avanzar a firmado/aplicado
+    if (PAGADO_STATUSES.includes(input.status)) {
+      if (!input.fecha_pago?.trim()) {
+        return { ok: false, error: "Registrá la fecha en que se realizó el pago." };
+      }
+      const canAdvanceFirma = userRole === "gestor" || userRole === "admin";
+      if ((input.status === "firmado" || input.status === "aplicado") && !canAdvanceFirma) {
+        return {
+          ok: false,
+          error: "Solo gestores o administradores pueden avanzar a Firmado o Aplicado.",
+        };
+      }
+    }
+
     let intentos = Math.min(
       RULES.MAX_INTENTOS,
       Math.max(0, Math.floor(Number(existing.intentos ?? 0)))
@@ -154,6 +179,8 @@ export async function saveNegociacion(
         pago_intencion: pi,
         fecha_compromiso: input.fecha_compromiso?.trim() || null,
         motivo_rechazo: input.motivo_rechazo?.trim() || null,
+        motivo_cierre: input.motivo_cierre?.trim() || null,
+        fecha_pago: input.fecha_pago?.trim() || null,
         notes: input.notes?.trim() || null,
         bono_pronto_pago: input.bono_pronto_pago,
         last_activity_by: lastActivityBy,

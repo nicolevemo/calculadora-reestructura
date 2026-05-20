@@ -7,7 +7,10 @@ export type CallStatus =
   | "aceptado"
   | "rechazado"
   | "necesita_revision"
-  | "cerrado";
+  | "cerrado"
+  | "pendiente_firma"
+  | "firmado"
+  | "aplicado";
 
 export type UploadStatus = "procesando" | "activo" | "archivado";
 
@@ -110,4 +113,6 @@ export interface ClienteDashboardRow {
   exported_by: string | null;
   /** Si el agente marcó que el cliente cumple bono pronto pago ($400). */
   bono_pronto_pago?: boolean | null;
+  /** AF duplicado detectado al subir el CSV. */
+  is_duplicate?: boolean | null;
 }

@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { calculate } from "@/lib/calculator";
 import type { AssignableAgent } from "@/lib/assignable-agents";
-import { RULES, STATUS, STATUS_ORDER } from "@/lib/constants";
+import { PAGADO_STATUSES, RULES, STATUS, STATUS_ORDER, STATUS_SELECTOR } from "@/lib/constants";
 import type { CalculatorClientInput, CallStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +84,8 @@ export type ClienteWorkspaceProps = {
     pago_intencion: number | null;
     fecha_compromiso: string | null;
     motivo_rechazo: string | null;
+    motivo_cierre: string | null;
+    fecha_pago: string | null;
     notes: string | null;
     updated_at: string;
     exported_at: string | null;
@@ -118,9 +120,17 @@ function todayMx() {
   });
 }
 
-function deriveInitialPago(ci: CalculatorClientInput, pi: number | null) {
-  const z = calculate(ci, pi ?? 0);
-  if (pi != null && pi > 0 && z.isValid) return pi;
+/** Estados donde no se requiere pago de intención → default $0 */
+const ZERO_PAGO_STATUSES: CallStatus[] = ["listo_contactar", "sin_respuesta", "necesita_revision"];
+
+function deriveInitialPago(ci: CalculatorClientInput, pi: number | null, status: CallStatus) {
+  if (pi != null && pi > 0) {
+    const z = calculate(ci, pi);
+    if (z.isValid) return pi;
+  }
+  // En estados sin acuerdo, si no hay pago guardado arrancamos en 0
+  if (ZERO_PAGO_STATUSES.includes(status) && (pi == null || pi === 0)) return 0;
+  const z = calculate(ci, 0);
   return z.pagoIntencionMin;
 }
 
@@ -150,17 +160,19 @@ export function ClienteWorkspace({
     [cliente]
   );
 
-  const initialSnapshot = useMemo(
-    () => ({
-      status: isCallStatus(negociacion.status) ? negociacion.status : ("listo_contactar" as CallStatus),
+  const initialSnapshot = useMemo(() => {
+    const status = isCallStatus(negociacion.status) ? negociacion.status : ("listo_contactar" as CallStatus);
+    return {
+      status,
       fechaCompromiso: negociacion.fecha_compromiso?.slice(0, 10) ?? "",
       motivoRechazo: negociacion.motivo_rechazo ?? "",
+      motivoCierre: negociacion.motivo_cierre ?? "",
+      fechaPago: negociacion.fecha_pago?.slice(0, 10) ?? "",
       notes: negociacion.notes ?? "",
       bonoProntoPago: Boolean(negociacion.bono_pronto_pago),
-      pago: deriveInitialPago(clientInput, negociacion.pago_intencion),
-    }),
-    [clientInput, negociacion]
-  );
+      pago: deriveInitialPago(clientInput, negociacion.pago_intencion, status),
+    };
+  }, [clientInput, negociacion]);
 
   const [pagoLive, setPagoLive] = useState(initialSnapshot.pago);
 
@@ -179,16 +191,24 @@ export function ClienteWorkspace({
   const [status, setStatus] = useState<CallStatus>(initialSnapshot.status);
   const [fechaCompromiso, setFechaCompromiso] = useState(initialSnapshot.fechaCompromiso);
   const [motivoRechazo, setMotivoRechazo] = useState(initialSnapshot.motivoRechazo);
+  const [motivoCierre, setMotivoCierre] = useState(initialSnapshot.motivoCierre);
+  const [fechaPago, setFechaPago] = useState(initialSnapshot.fechaPago);
   const [notes, setNotes] = useState(initialSnapshot.notes);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  const isEnPagoFlow = PAGADO_STATUSES.includes(status);
+  // El selector principal muestra "pagado" como valor agrupado para todo el flujo de firma
+  const selectorValue: string = isEnPagoFlow ? "pagado" : status;
 
   const isDirty = useMemo(
     () =>
       status !== initialSnapshot.status ||
       fechaCompromiso !== initialSnapshot.fechaCompromiso ||
       motivoRechazo !== initialSnapshot.motivoRechazo ||
+      motivoCierre !== initialSnapshot.motivoCierre ||
+      fechaPago !== initialSnapshot.fechaPago ||
       notes !== initialSnapshot.notes ||
       bonoProntoPago !== initialSnapshot.bonoProntoPago ||
       pagoLive !== initialSnapshot.pago,
@@ -196,6 +216,8 @@ export function ClienteWorkspace({
       status,
       fechaCompromiso,
       motivoRechazo,
+      motivoCierre,
+      fechaPago,
       notes,
       bonoProntoPago,
       pagoLive,
@@ -242,6 +264,8 @@ export function ClienteWorkspace({
           pago_intencion: pagoLive > 0 ? pagoLive : null,
           fecha_compromiso: fechaCompromiso.trim() || null,
           motivo_rechazo: motivoRechazo.trim() || null,
+          motivo_cierre: motivoCierre.trim() || null,
+          fecha_pago: fechaPago.trim() || null,
           notes: notes.trim() || null,
           bono_pronto_pago: bonoProntoPago,
         });
@@ -362,16 +386,26 @@ export function ClienteWorkspace({
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
           <div className="w-full min-w-[200px] max-w-xs">
             <Label className="sr-only">Estado de la llamada</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as CallStatus)}>
+            <Select
+              value={selectorValue}
+              onValueChange={(v) => {
+                if (v === "pagado") {
+                  setStatus("pendiente_firma");
+                } else {
+                  setStatus(v as CallStatus);
+                }
+              }}
+            >
               <SelectTrigger aria-label="Estado de la llamada">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_ORDER.map((s) => (
+                {STATUS_SELECTOR.map((s) => (
                   <SelectItem key={s} value={s}>
                     {STATUS[s].label}
                   </SelectItem>
                 ))}
+                <SelectItem value="pagado">Pagado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -410,6 +444,7 @@ export function ClienteWorkspace({
               isAboveMax={calc.isAboveMax}
               fechaCompromiso={fechaCompromiso}
               onFechaCompromisoChange={setFechaCompromiso}
+              defaultZero={ZERO_PAGO_STATUSES.includes(status)}
             />
             <div className="min-w-0 space-y-6">
               <DealCalculatorDetail
@@ -448,6 +483,131 @@ export function ClienteWorkspace({
                 )}
                 placeholder="Ej. No quiere reestructurar, prefiere liquidar, etc."
               />
+            </div>
+          ) : null}
+
+          {status === "cerrado" ? (
+            <div className="space-y-2">
+              <Label htmlFor="motivo-cierre">
+                Motivo de cierre{" "}
+                <span className="text-destructive">*</span>
+              </Label>
+              <textarea
+                id="motivo-cierre"
+                value={motivoCierre}
+                onChange={(e) => setMotivoCierre(e.target.value)}
+                rows={3}
+                required
+                className={cn(
+                  "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  !motivoCierre.trim() && "border-amber-400 focus-visible:ring-amber-400"
+                )}
+                placeholder="Explicá por qué se cierra el caso (no implica pago)…"
+              />
+              {!motivoCierre.trim() ? (
+                <p className="text-xs text-amber-700">Requerido para cerrar el caso.</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isEnPagoFlow ? (
+            <div className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4">
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">Flujo de pago</p>
+                <p className="mt-0.5 text-xs text-emerald-700">
+                  Solo gestores y admins pueden avanzar a Firmado o Aplicado.
+                </p>
+              </div>
+
+              {/* Progreso visual */}
+              <div className="flex items-center gap-2">
+                {(["pendiente_firma", "firmado", "aplicado"] as CallStatus[]).map((st, i, arr) => {
+                  const idx = arr.indexOf(status);
+                  const done = i < idx;
+                  const active = i === idx;
+                  return (
+                    <div key={st} className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+                          active
+                            ? "bg-emerald-600 text-white"
+                            : done
+                              ? "bg-emerald-200 text-emerald-800"
+                              : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {i + 1}
+                      </div>
+                      <span
+                        className={cn(
+                          "text-xs",
+                          active ? "font-semibold text-emerald-900" : "text-muted-foreground"
+                        )}
+                      >
+                        {STATUS[st].label}
+                      </span>
+                      {i < arr.length - 1 ? (
+                        <span className="text-muted-foreground">→</span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Avanzar etapa (solo gestor/admin — la validación final es en el server) */}
+              {status !== "aplicado" ? (
+                <div className="flex gap-2">
+                  {status === "pendiente_firma" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStatus("firmado")}
+                    >
+                      Marcar como Firmado
+                    </Button>
+                  ) : null}
+                  {status === "firmado" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      onClick={() => setStatus("aplicado")}
+                    >
+                      Marcar como Aplicado
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-xs font-medium text-emerald-700">
+                  ✓ Caso aplicado — proceso completado.
+                </p>
+              )}
+
+              {/* Fecha de pago */}
+              <div className="space-y-1.5">
+                <Label htmlFor="fecha-pago" className="text-sm font-medium">
+                  Fecha de pago <span className="text-destructive">*</span>
+                </Label>
+                <input
+                  id="fecha-pago"
+                  type="date"
+                  value={fechaPago}
+                  onChange={(e) => setFechaPago(e.target.value)}
+                  className={cn(
+                    "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    !fechaPago.trim() && "border-amber-400 focus-visible:ring-amber-400"
+                  )}
+                />
+                {!fechaPago.trim() ? (
+                  <p className="text-xs text-amber-700">
+                    Ingresá la fecha en que el cliente realizó el pago.
+                  </p>
+                ) : null}
+              </div>
             </div>
           ) : null}
 

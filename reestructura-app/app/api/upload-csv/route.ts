@@ -147,12 +147,46 @@ export async function POST(request: Request) {
       energia_adicional: null,
     }));
 
-    const { error: insErr } = await writeClient.from("clientes").insert(payload);
+    // Detectar duplicados dentro del mismo CSV (mismo AF aparece 2+ veces)
+    const seenAfs = new Set<string>();
+    const withinBatchDupAfs = new Set<string>();
+    for (const r of payload) {
+      if (seenAfs.has(r.af)) withinBatchDupAfs.add(r.af);
+      seenAfs.add(r.af);
+    }
+
+    // Marcar los duplicados del mismo lote antes de insertar
+    const payloadWithDups = payload.map((r) => ({
+      ...r,
+      is_duplicate: withinBatchDupAfs.has(r.af),
+    }));
+
+    const { error: insErr } = await writeClient.from("clientes").insert(payloadWithDups);
 
     if (insErr) {
       await writeClient.from("shortlist_uploads").delete().eq("id", upload.id);
       return NextResponse.json({ error: insErr.message }, { status: 500 });
     }
+
+    // Detectar duplicados cross-upload: AFs recién insertados que ya existían en otros uploads
+    const allAfs = Array.from(seenAfs);
+    const { data: crossDups } = await writeClient
+      .from("clientes")
+      .select("af")
+      .in("af", allAfs)
+      .neq("upload_id", upload.id);
+
+    if (crossDups && crossDups.length > 0) {
+      const crossDupAfs = Array.from(new Set(crossDups.map((r) => r.af as string)));
+      await writeClient
+        .from("clientes")
+        .update({ is_duplicate: true })
+        .eq("upload_id", upload.id)
+        .in("af", crossDupAfs);
+    }
+
+    const totalDuplicates =
+      withinBatchDupAfs.size + (crossDups ? new Set(crossDups.map((r) => r.af)).size : 0);
 
     const { error: countErr } = await writeClient
       .from("shortlist_uploads")
@@ -175,6 +209,7 @@ export async function POST(request: Request) {
       ok: true,
       uploadId: upload.id,
       inserted: insertRows.length,
+      duplicates: totalDuplicates,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Error desconocido";

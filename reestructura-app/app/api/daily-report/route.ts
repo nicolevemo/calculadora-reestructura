@@ -8,8 +8,9 @@ import type { CallStatus } from "@/lib/types";
 export type AceptadoCerradoRow = {
   nombre: string;
   af: string;
-  originacion_vehiculo: string | null;
-  saldo_vencido: number;
+  plataforma: string | null;
+  /** adeudo + semana_siguiente */
+  saldo_reestructurar: number;
   pago_intencion: number;
   /** Igual a pago_intencion por las reglas del negocio. */
   condonacion: number;
@@ -28,11 +29,15 @@ export type DailyReportSnapshot = {
   condonacion_hoy: number;
   /** Suma condonación de todos los actualmente 'aceptado'. */
   condonacion_aceptados: number;
-  /** Suma condonación de todos los actualmente 'cerrado'. */
-  condonacion_cerrados: number;
+  /** Número de clientes en estado 'cerrado' (caso cerrado sin pago). */
+  count_cerrados: number;
+  /** Suma de pago_intencion de clientes en flujo de pago (pendiente_firma + firmado + aplicado). */
+  monto_pagado: number;
+  /** Cantidad de clientes en flujo de pago. */
+  count_pagados: number;
   /**
-   * Conversión: cerrados / (aceptados + cerrados) × 100.
-   * Aceptados = comprometidos, cerrados = hicieron el pago.
+   * Conversión: pagados / (aceptados + pagados) × 100.
+   * Aceptados = comprometidos, pagados = hicieron el pago de intención.
    */
   conversion_pct: number;
   pronostico_llamadas: number;
@@ -77,15 +82,16 @@ function toAceptadoCerradoRow(
     af: string;
     nombre: string;
     adeudo: number;
-    originacion_vehiculo: string | null;
+    semana_siguiente: number;
+    plataforma: string | null;
   }
 ): AceptadoCerradoRow {
   const pi = Number(r.pago_intencion ?? 0);
   return {
     nombre: cliente.nombre,
     af: cliente.af,
-    originacion_vehiculo: cliente.originacion_vehiculo,
-    saldo_vencido: cliente.adeudo,
+    plataforma: cliente.plataforma,
+    saldo_reestructurar: Number(cliente.adeudo) + Number(cliente.semana_siguiente),
     pago_intencion: pi,
     condonacion: pi,
     status: (r.status as "aceptado" | "cerrado") ?? "aceptado",
@@ -113,6 +119,9 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     "rechazado",
     "necesita_revision",
     "cerrado",
+    "pendiente_firma",
+    "firmado",
+    "aplicado",
   ];
   const por_status = ALL_STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: 0 }),
@@ -148,7 +157,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
       .from("negociaciones")
       .select(
         `pago_intencion, status, assigned_to_name:profiles!negociaciones_assigned_to_fkey(full_name),
-         clientes!inner(af, nombre, adeudo, originacion_vehiculo)`
+         clientes!inner(af, nombre, adeudo, semana_siguiente, plataforma)`
       )
       .in("cliente_id", clienteIdsHoy)
       // Incluir también 'cerrado': un deal aceptado hoy puede haber sido cerrado en el mismo día
@@ -156,7 +165,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
 
     aceptados_hoy = (negHoy ?? []).map((r) => {
       const cliente = r.clientes as unknown as {
-        af: string; nombre: string; adeudo: number; originacion_vehiculo: string | null;
+        af: string; nombre: string; adeudo: number; semana_siguiente: number; plataforma: string | null;
       };
       const agente = r.assigned_to_name as unknown as { full_name: string } | null;
       return toAceptadoCerradoRow(
@@ -171,13 +180,13 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     .from("negociaciones")
     .select(
       `pago_intencion, status, assigned_to_name:profiles!negociaciones_assigned_to_fkey(full_name),
-       clientes!inner(af, nombre, adeudo, originacion_vehiculo)`
+       clientes!inner(af, nombre, adeudo, semana_siguiente, plataforma)`
     )
     .in("status", ["aceptado", "cerrado"]);
 
   const todos_aceptados_cerrados: AceptadoCerradoRow[] = (acCerRows ?? []).map((r) => {
     const cliente = r.clientes as unknown as {
-      af: string; nombre: string; adeudo: number; originacion_vehiculo: string | null;
+      af: string; nombre: string; adeudo: number; semana_siguiente: number; plataforma: string | null;
     };
     const agente = r.assigned_to_name as unknown as { full_name: string } | null;
     return toAceptadoCerradoRow(
@@ -189,21 +198,26 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
   // Condonación del día: suma de los aceptados hoy
   const condonacion_hoy = aceptados_hoy.reduce((sum, r) => sum + r.condonacion, 0);
 
-  // Condonación por estado (acumulada)
+  // Condonación de todos los actualmente aceptados
   const condonacion_aceptados = todos_aceptados_cerrados
     .filter((r) => r.status === "aceptado")
     .reduce((sum, r) => sum + r.condonacion, 0);
 
-  const condonacion_cerrados = todos_aceptados_cerrados
-    .filter((r) => r.status === "cerrado")
-    .reduce((sum, r) => sum + r.condonacion, 0);
+  // Cerrados = casos cerrados sin pago (solo conteo)
+  const count_cerrados = por_status["cerrado"] ?? 0;
 
-  // Conversión: de los comprometidos (aceptados), cuántos ya pagaron (cerrados)
+  // Flujo de pago: pendiente_firma + firmado + aplicado
+  const PAGADO_FLOW: CallStatus[] = ["pendiente_firma", "firmado", "aplicado"];
+  const count_pagados = PAGADO_FLOW.reduce((s, st) => s + (por_status[st] ?? 0), 0);
+  const monto_pagado = all
+    .filter((r) => PAGADO_FLOW.includes(r.status as CallStatus))
+    .reduce((s, r) => s + Number(r.pago_intencion ?? 0), 0);
+
+  // Conversión: pagados / (aceptados + pagados) × 100
   const nAceptados = por_status["aceptado"] ?? 0;
-  const nCerrados = por_status["cerrado"] ?? 0;
   const conversion_pct =
-    nAceptados + nCerrados > 0
-      ? Math.round((nCerrados / (nAceptados + nCerrados)) * 100)
+    nAceptados + count_pagados > 0
+      ? Math.round((count_pagados / (nAceptados + count_pagados)) * 100)
       : 0;
 
   // Pronóstico: clientes en listo_contactar + sin_respuesta
@@ -217,13 +231,18 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     todos_aceptados_cerrados,
     condonacion_hoy,
     condonacion_aceptados,
-    condonacion_cerrados,
+    count_cerrados,
+    monto_pagado,
+    count_pagados,
     conversion_pct,
     pronostico_llamadas,
   };
 }
 
-/** GET /api/daily-report?date=YYYY-MM-DD */
+/** GET /api/daily-report?date=YYYY-MM-DD
+ *  Siempre devuelve datos en vivo. Si hay un reporte guardado, devuelve sus
+ *  actividades y próximos pasos para no perder lo que el admin escribió.
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
@@ -237,25 +256,20 @@ export async function GET(request: Request) {
   const { role } = await getSessionProfile(supabase, user);
   if (role !== "admin") return NextResponse.json({ error: "Solo admins" }, { status: 403 });
 
-  // Try to fetch saved report for this date
+  // Load saved texts (actividades + next_steps) if they exist — data is always live
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("daily_reports")
-    .select("*")
+    .select("actividades, next_steps, generated_at")
     .eq("report_date", date)
     .maybeSingle();
 
-  if (existing) {
-    return NextResponse.json({ report: existing as DailyReport, live: false });
-  }
-
-  // Return live snapshot (not yet saved)
   const snapshot = await fetchLiveSnapshot(date);
   return NextResponse.json({
-    report: null,
-    live: true,
     snapshot,
-    defaults: { horario_inicio: "14:00", horario_fin: "17:30" },
+    savedTexts: existing
+      ? { actividades: existing.actividades, next_steps: existing.next_steps, saved_at: existing.generated_at }
+      : null,
   });
 }
 

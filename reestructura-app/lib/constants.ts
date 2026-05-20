@@ -10,19 +10,39 @@ export const RULES = {
 } as const;
 
 export const STATUS = {
-  listo_contactar: { label: "Listo para contactar", color: "gray" },
-  sin_respuesta: { label: "Sin respuesta", color: "amber" },
-  en_negociacion: { label: "En negociación", color: "blue" },
-  aceptado: { label: "Aceptado", color: "green" },
-  rechazado: { label: "Rechazado", color: "red" },
-  necesita_revision: { label: "Necesita revisión", color: "purple" },
-  cerrado: { label: "Cerrado", color: "slate" },
+  listo_contactar:   { label: "Listo para contactar", color: "gray" },
+  sin_respuesta:     { label: "Sin respuesta",         color: "amber" },
+  en_negociacion:    { label: "En negociación",        color: "blue" },
+  aceptado:          { label: "Aceptado",              color: "green" },
+  rechazado:         { label: "Rechazado",             color: "red" },
+  necesita_revision: { label: "Necesita revisión",     color: "purple" },
+  cerrado:           { label: "Cerrado",               color: "slate" },
+  pendiente_firma:   { label: "Pendiente de firma",    color: "blue" },
+  firmado:           { label: "Firmado",               color: "green" },
+  aplicado:          { label: "Aplicado",              color: "green" },
 } as const satisfies Record<
   CallStatus,
   { label: string; color: "gray" | "amber" | "blue" | "green" | "red" | "purple" | "slate" }
 >;
 
 export const STATUS_ORDER: CallStatus[] = [
+  "listo_contactar",
+  "sin_respuesta",
+  "en_negociacion",
+  "aceptado",
+  "rechazado",
+  "necesita_revision",
+  "cerrado",
+  "pendiente_firma",
+  "firmado",
+  "aplicado",
+];
+
+/** Estados del flujo de pago (sub-estados de PAGADO). */
+export const PAGADO_STATUSES: CallStatus[] = ["pendiente_firma", "firmado", "aplicado"];
+
+/** Estados que aparecen en el selector principal del agente (excluye sub-estados de pago). */
+export const STATUS_SELECTOR: CallStatus[] = [
   "listo_contactar",
   "sin_respuesta",
   "en_negociacion",

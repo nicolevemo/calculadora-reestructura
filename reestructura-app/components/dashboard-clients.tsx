@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -10,6 +10,14 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -25,7 +33,8 @@ import { fmtDate, fmtMoney } from "@/lib/format";
 import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
 
 type StatusFilter = CallStatus | "all";
-type AssignFilter = "all" | "unassigned" | "mine";
+// "all" | "unassigned" | "mine" | <agent-uuid>
+type AssignFilter = string;
 
 function fmtApi(u: boolean | null | undefined, d: boolean | null | undefined) {
   const parts: string[] = [];
@@ -56,10 +65,10 @@ export function DashboardClients({
   currentUserId?: string | null;
 }) {
   const router = useRouter();
+  const defaultAssignFilter: AssignFilter = canAssign ? "all" : currentUserId ? "mine" : "all";
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [assignFilter, setAssignFilter] = useState<AssignFilter>(() =>
-    canAssign ? "all" : currentUserId ? "mine" : "all"
-  );
+  const [assignFilter, setAssignFilter] = useState<AssignFilter>(defaultAssignFilter);
+  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
   const [q, setQ] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [exportBusy, setExportBusy] = useState(false);
@@ -67,21 +76,24 @@ export function DashboardClients({
   const [assignErr, setAssignErr] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const count = (s: CallStatus) =>
+  /** Counts over ALL rows — used for option labels in dropdowns */
+  const totalStats = useMemo(() => {
+    const count = (s: string) =>
       rows.filter((r) => (r.status ?? "listo_contactar") === s).length;
+    const byStatus = Object.fromEntries(
+      STATUS_ORDER.map((s) => [s, count(s)])
+    ) as Record<string, number>;
+    const byAgent = Object.fromEntries(
+      assignableAgents.map((a) => [a.id, rows.filter((r) => r.assigned_to === a.id).length])
+    );
     return {
-      total,
-      listo_contactar: count("listo_contactar"),
-      sin_respuesta: count("sin_respuesta"),
-      en_negociacion: count("en_negociacion"),
-      aceptado: count("aceptado"),
-      rechazado: count("rechazado"),
-      necesita_revision: count("necesita_revision"),
-      cerrado: count("cerrado"),
+      total: rows.length,
+      byStatus,
+      byAgent,
+      unassigned: rows.filter((r) => !r.assigned_to).length,
+      duplicates: rows.filter((r) => r.is_duplicate).length,
     };
-  }, [rows]);
+  }, [rows, assignableAgents]);
 
   const filtered = useMemo(() => {
     let r = rows;
@@ -92,6 +104,11 @@ export function DashboardClients({
       r = r.filter((row) => !row.assigned_to);
     } else if (assignFilter === "mine" && currentUserId) {
       r = r.filter((row) => row.assigned_to === currentUserId);
+    } else if (assignFilter !== "all") {
+      r = r.filter((row) => row.assigned_to === assignFilter);
+    }
+    if (onlyDuplicates) {
+      r = r.filter((row) => row.is_duplicate);
     }
     const needle = q.trim().toLowerCase();
     if (needle) {
@@ -102,7 +119,17 @@ export function DashboardClients({
       );
     }
     return r;
-  }, [rows, status, assignFilter, currentUserId, q]);
+  }, [rows, status, assignFilter, currentUserId, onlyDuplicates, q]);
+
+  /** Stats computed from the currently filtered rows — power the stat cards */
+  const filteredStats = useMemo(() => {
+    const count = (s: string) =>
+      filtered.filter((r) => (r.status ?? "listo_contactar") === s).length;
+    const byStatus = Object.fromEntries(
+      STATUS_ORDER.map((s) => [s, count(s)])
+    ) as Record<string, number>;
+    return { total: filtered.length, byStatus };
+  }, [filtered]);
 
   const exportableFiltered = useMemo(
     () => filtered.filter((row) => !isClienteExportado(row.exported_at)),
@@ -190,14 +217,15 @@ export function DashboardClients({
     }
   }, [router, selectedIds]);
 
-  const filterButtons: { id: StatusFilter; label: string; count: number }[] = [
-    { id: "all", label: "Todos", count: stats.total },
-    ...STATUS_ORDER.map((id) => ({
-      id,
-      label: STATUS[id].label,
-      count: stats[id],
-    })),
-  ];
+  const hasActiveFilters =
+    status !== "all" || assignFilter !== defaultAssignFilter || onlyDuplicates || q.trim() !== "";
+
+  const clearFilters = useCallback(() => {
+    setStatus("all");
+    setAssignFilter(defaultAssignFilter);
+    setOnlyDuplicates(false);
+    setQ("");
+  }, [defaultAssignFilter]);
 
   const handleDelete = useCallback(async (id: string, nombre: string) => {
     if (!window.confirm(`¿Eliminar a ${nombre} de la base de datos? Esta acción no se puede deshacer.`)) return;
@@ -218,12 +246,6 @@ export function DashboardClients({
   /** Checkbox (solo gestor) + datos + Exportado (todos) + Eliminar (solo admin) */
   const colSpan = canExportCsv ? 13 : 12;
 
-  const assignFilterButtons: { id: AssignFilter; label: string }[] = [
-    { id: "all", label: "Todos" },
-    { id: "unassigned", label: "Sin asignar" },
-    { id: "mine", label: "Mis clientes" },
-  ];
-
   return (
     <div className="space-y-6">
       <div className="space-y-2">{greeting}</div>
@@ -237,51 +259,111 @@ export function DashboardClients({
         </p>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard label="Total" value={stats.total} />
-        <StatCard label="Listo para contactar" value={stats.listo_contactar} />
-        <StatCard label="En negociación" value={stats.en_negociacion} />
-        <StatCard label="Aceptados" value={stats.aceptado} />
-        <StatCard label="Sin respuesta" value={stats.sin_respuesta} />
+      {/* ── Stats (reflejan el filtro activo) ── */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <StatCard label="Mostrando" value={filteredStats.total} highlight={hasActiveFilters} />
+        <StatCard label="Sin contacto"  value={filteredStats.byStatus["listo_contactar"] ?? 0} />
+        <StatCard label="En negociación" value={filteredStats.byStatus["en_negociacion"] ?? 0} />
+        <StatCard label="Aceptados"      value={filteredStats.byStatus["aceptado"] ?? 0} />
+        <StatCard label="Sin respuesta"  value={filteredStats.byStatus["sin_respuesta"] ?? 0} />
+        <StatCard
+          label="En pago/firma"
+          value={
+            (filteredStats.byStatus["pendiente_firma"] ?? 0) +
+            (filteredStats.byStatus["firmado"] ?? 0) +
+            (filteredStats.byStatus["aplicado"] ?? 0)
+          }
+        />
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {filterButtons.map((b) => (
-            <Button
-              key={b.id}
-              type="button"
-              size="sm"
-              variant={status === b.id ? "default" : "outline"}
-              onClick={() => setStatus(b.id)}
-            >
-              {b.label}
-              <span className="ml-1.5 tabular-nums text-muted-foreground">({b.count})</span>
-            </Button>
-          ))}
-        </div>
-        <div className="w-full max-w-sm">
+      {/* ── Filtros compactos ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Status */}
+        <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+          <SelectTrigger className="h-9 w-[200px] text-sm">
+            <SelectValue placeholder="Estado: Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados ({totalStats.total})</SelectItem>
+            <div className="mx-1 my-1 h-px bg-border" />
+            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Gestión</div>
+            <SelectGroup>
+              {(["listo_contactar","sin_respuesta","en_negociacion","aceptado","rechazado","necesita_revision","cerrado"] as CallStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {STATUS[s].label} ({totalStats.byStatus[s] ?? 0})
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <div className="mx-1 my-1 h-px bg-border" />
+            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Flujo de pago</div>
+            <SelectGroup>
+              {(["pendiente_firma","firmado","aplicado"] as CallStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {STATUS[s].label} ({totalStats.byStatus[s] ?? 0})
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        {/* Asignado */}
+        <Select value={assignFilter} onValueChange={setAssignFilter}>
+          <SelectTrigger className="h-9 w-[220px] text-sm">
+            <SelectValue placeholder="Asignado: Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los agentes</SelectItem>
+            <SelectItem value="unassigned">Sin asignar ({totalStats.unassigned})</SelectItem>
+            {currentUserId ? (
+              <SelectItem value="mine">Mis clientes</SelectItem>
+            ) : null}
+            {assignableAgents.length > 0 ? (
+              <>
+                <div className="mx-1 my-1 h-px bg-border" />
+                <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Agentes</div>
+                <SelectGroup>
+                  {assignableAgents.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.full_name} ({totalStats.byAgent[a.id] ?? 0})
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </>
+            ) : null}
+          </SelectContent>
+        </Select>
+
+        {/* Búsqueda */}
+        <div className="flex-1 min-w-[180px] max-w-xs">
           <Input
+            className="h-9 text-sm"
             placeholder="Buscar por nombre o AF…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label="Buscar por nombre o AF"
           />
         </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {assignFilterButtons.map((button) => (
+        {/* Duplicados */}
+        {totalStats.duplicates > 0 ? (
           <Button
-            key={button.id}
             type="button"
             size="sm"
-            variant={assignFilter === button.id ? "secondary" : "outline"}
-            onClick={() => setAssignFilter(button.id)}
+            variant={onlyDuplicates ? "destructive" : "outline"}
+            onClick={() => setOnlyDuplicates((v) => !v)}
+            className="gap-1.5"
           >
-            {button.label}
+            ⚠ Duplicados ({totalStats.duplicates})
           </Button>
-        ))}
+        ) : null}
+
+        {/* Limpiar filtros */}
+        {hasActiveFilters ? (
+          <Button type="button" size="sm" variant="ghost" onClick={clearFilters} className="gap-1.5 text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+            Limpiar filtros
+          </Button>
+        ) : null}
       </div>
 
       {assignErr ? <p className="text-sm text-destructive">{assignErr}</p> : null}
@@ -355,11 +437,12 @@ export function DashboardClients({
                 const exported = isClienteExportado(r.exported_at);
                 const aceptadoExportado =
                   (r.status ?? "") === "aceptado" && exported;
+                const isDuplicate = Boolean(r.is_duplicate);
                 const openDetail = () => router.push(`/cliente/${r.id}`);
                 return (
                   <TableRow
                     key={r.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className={isDuplicate ? "cursor-pointer bg-orange-50/60 hover:bg-orange-50 dark:bg-orange-950/20" : "cursor-pointer hover:bg-muted/50"}
                   >
                     {canExportCsv ? (
                       <TableCell
@@ -377,10 +460,17 @@ export function DashboardClients({
                       </TableCell>
                     ) : null}
                     <TableCell
-                      className="max-w-[180px] truncate font-medium"
+                      className="max-w-[180px] font-medium"
                       onClick={openDetail}
                     >
-                      {r.nombre}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="truncate">{r.nombre}</span>
+                        {isDuplicate ? (
+                          <span className="inline-flex w-fit rounded border border-orange-300 bg-orange-50 px-1 py-0 text-[10px] font-semibold text-orange-700 dark:border-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
+                            AF duplicado
+                          </span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs" onClick={openDetail}>
                       {r.af}
@@ -473,12 +563,12 @@ export function DashboardClients({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <Card>
+    <Card className={highlight ? "border-primary/40 bg-primary/5" : undefined}>
       <CardContent className="p-4">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        <p className={`text-2xl font-semibold tabular-nums ${highlight ? "text-primary" : ""}`}>{value}</p>
       </CardContent>
     </Card>
   );
