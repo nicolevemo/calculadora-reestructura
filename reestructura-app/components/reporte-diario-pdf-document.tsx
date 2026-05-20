@@ -296,11 +296,12 @@ function fmtTimestamp(iso: string): string {
 // ─── reusable table ──────────────────────────────────────────
 function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string }) {
   // Landscape A4 ≈ 770pt content width — 10 columns
+  // CC Apl. y Balloon ampliados; nombre/af/plat/pago/cond reducidos para compensar
   const colW = {
-    nombre: "22%", af: "7%", plat: "7%",
-    saldo: "11%", pago: "10%", cond: "10%",
-    deuda: "11%", cc: "9%", balloon: "9%",
-    estado: "4%",
+    nombre: "19%", af: "6%", plat: "6%",
+    saldo: "10%", pago: "9%", cond: "9%",
+    deuda: "10%", cc: "12%", balloon: "13%",
+    estado: "6%",
   };
   const totalSaldo   = rows.reduce((s, r) => s + r.saldo_reestructurar, 0);
   const totalPago    = rows.reduce((s, r) => s + r.pago_intencion, 0);
@@ -321,7 +322,7 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             <Text style={[s.colH, { width: colW.nombre }]}>Cliente</Text>
             <Text style={[s.colH, { width: colW.af }]}>AF</Text>
             <Text style={[s.colH, { width: colW.plat }]}>Plat.</Text>
-            <Text style={[s.colH, { width: colW.saldo,  textAlign: "right" }]}>Saldo</Text>
+            <Text style={[s.colH, { width: colW.saldo,  textAlign: "right" }]}>Saldo a Reg.</Text>
             <Text style={[s.colH, { width: colW.pago,   textAlign: "right" }]}>Pago int.</Text>
             <Text style={[s.colH, { width: colW.cond,   textAlign: "right" }]}>Cond.</Text>
             <Text style={[s.colH, { width: colW.deuda,  textAlign: "right" }]}>Deuda post</Text>
@@ -446,44 +447,70 @@ export function ReporteDiarioPdfDocument({ report }: ReporteDiarioPdfProps) {
         </View>
 
         {/* ── INDICADORES ── */}
-        <View style={s.condRow}>
-          <View style={s.condCard}>
-            <Text style={s.condLabel}>Condonación del día</Text>
-            <Text style={[s.condValue, { color: C.amber }]}>{fmtCurrency(snap.condonacion_hoy)}</Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Aceptados hoy</Text>
+
+        {/* Fila 1 — Condonación del día */}
+        <View style={[s.condRow, { marginBottom: 8 }]}>
+          <View style={[s.condCard, { flexDirection: "row", alignItems: "center", gap: 16 }]}>
+            <View>
+              <Text style={s.condLabel}>Condonación del Día</Text>
+              <Text style={[s.condValue, { color: C.amber, fontSize: 18 }]}>
+                {fmtCurrency(snap.condonacion_hoy)}
+              </Text>
+            </View>
+            <Text style={[s.condLabel, { fontSize: 6.5, color: C.dim }]}>
+              Acuerdos aceptados hoy
+            </Text>
           </View>
+        </View>
+
+        {/* Fila 2 — Métricas acumuladas de aceptados */}
+        <View style={[s.condRow, { marginBottom: 8 }]}>
           <View style={s.condCard}>
-            <Text style={s.condLabel}>Condonación Aceptados</Text>
-            <Text style={s.condValue}>{fmtCurrency(snap.condonacion_aceptados ?? 0)}</Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Comprometidos</Text>
+            <Text style={s.condLabel}>Cond. Total Aceptados</Text>
+            <Text style={[s.condValue, { color: C.green }]}>{fmtCurrency(snap.condonacion_aceptados ?? 0)}</Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Acumulado aceptados</Text>
           </View>
           <View style={s.condCard}>
             <Text style={s.condLabel}>Prom. Condonación</Text>
             <Text style={[s.condValue, { color: C.green, fontSize: 13 }]}>{fmtCurrency(snap.prom_condonacion ?? 0)}</Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Promedio por acuerdo</Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>
+              Promedio · {snap.por_status["aceptado"] ?? 0} acept.
+            </Text>
           </View>
           <View style={s.condCard}>
             <Text style={s.condLabel}>Prom. Deuda Post Cond.</Text>
             <Text style={[s.condValue, { color: C.dim, fontSize: 13 }]}>{fmtCurrency(snap.prom_deuda_post_cond ?? 0)}</Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>
-              {(snap.prom_csc_con_balloon ?? 0) > 0
-                ? `CSC c/balloon: ${fmtCurrency(snap.prom_csc_con_balloon ?? 0)}`
-                : "Sin balloon"}
-            </Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Promedio · solo con deuda &gt; $0</Text>
           </View>
           <View style={s.condCard}>
-            <Text style={s.condLabel}>Cerrados</Text>
+            <Text style={s.condLabel}>Plazo Promedio</Text>
+            <Text style={[s.condValue, { color: "#7c3aed", fontSize: 18 }]}>
+              {snap.plazo_promedio_aceptados ?? 0} sem.
+            </Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Plazo remanente aceptados</Text>
+          </View>
+        </View>
+
+        {/* Fila 3 — Cerrados, pagados, conversión */}
+        <View style={s.condRow}>
+          <View style={s.condCard}>
+            <Text style={s.condLabel}>Casos Cerrados</Text>
             <Text style={[s.condValue, { color: C.slate, fontSize: 20 }]}>
               {snap.count_cerrados ?? 0}
             </Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Sin pago</Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Clientes sin pago</Text>
           </View>
           <View style={s.condCard}>
-            <Text style={s.condLabel}>Pagado</Text>
+            <Text style={s.condLabel}>Pagados — Monto</Text>
             <Text style={[s.condValue, { color: C.blue }]}>{fmtCurrency(snap.monto_pagado ?? 0)}</Text>
-            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>
-              {snap.count_pagados ?? 0} clientes · pago intención
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Total $$ en flujo pago</Text>
+          </View>
+          <View style={s.condCard}>
+            <Text style={s.condLabel}>Pagados — Clientes</Text>
+            <Text style={[s.condValue, { color: C.blue, fontSize: 20 }]}>
+              {snap.count_pagados ?? 0}
             </Text>
+            <Text style={[s.condLabel, { fontSize: 6.5, marginTop: 2 }]}>Clientes en flujo pago</Text>
           </View>
           <View style={s.condCard}>
             <Text style={s.condLabel}>Conversión</Text>

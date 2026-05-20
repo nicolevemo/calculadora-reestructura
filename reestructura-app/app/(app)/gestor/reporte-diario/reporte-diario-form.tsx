@@ -107,7 +107,7 @@ function AcCerTableUI({
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Cliente</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">AF</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Plat.</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Saldo</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Saldo a Regularizar</th>
               <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Pago int.</th>
               <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Condonación</th>
               <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Deuda post cond.</th>
@@ -344,63 +344,76 @@ export function ReporteDiarioForm() {
           </div>
 
           {/* ── 2. Indicadores ── */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
-            <div className="rounded-lg border bg-amber-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-amber-700">
-                Condonación del día
-              </p>
-              <p className="mt-1 text-2xl font-bold text-amber-800">{fmtCurrency(snapshot.condonacion_hoy)}</p>
-              <p className="mt-1 text-xs text-amber-600/80">Aceptados hoy</p>
+          <div className="space-y-3">
+
+            {/* Fila 1 — Condonación del día */}
+            <div className="rounded-lg border bg-amber-50 px-5 py-4 flex items-center gap-6">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-amber-700">
+                  Condonación del día
+                </p>
+                <p className="mt-0.5 text-3xl font-bold text-amber-800">{fmtCurrency(snapshot.condonacion_hoy)}</p>
+              </div>
+              <p className="text-xs text-amber-600/80">Acuerdos aceptados hoy</p>
             </div>
-            <div className="rounded-lg border bg-green-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-green-700">
-                Condonación Aceptados
-              </p>
-              <p className="mt-1 text-2xl font-bold text-green-800">{fmtCurrency(snapshot.condonacion_aceptados)}</p>
-              <p className="mt-1 text-xs text-green-600/80">Comprometidos (acumulado)</p>
+
+            {/* Fila 2 — Métricas acumuladas de aceptados */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border bg-green-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-green-700">Cond. Total Aceptados</p>
+                <p className="mt-1 text-2xl font-bold text-green-800">{fmtCurrency(snapshot.condonacion_aceptados)}</p>
+                <p className="mt-1 text-xs text-green-600/80">Acumulado aceptados</p>
+              </div>
+              <div className="rounded-lg border bg-green-50/70 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-green-700">Prom. Condonación</p>
+                <p className="mt-1 text-2xl font-bold text-green-800">{fmtCurrency(snapshot.prom_condonacion ?? 0)}</p>
+                <p className="mt-1 text-xs text-green-600/80">
+                  Promedio por aceptado · {snapshot.por_status["aceptado"] ?? 0} clientes
+                </p>
+              </div>
+              <div className="rounded-lg border bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-600">Prom. Deuda Post Cond.</p>
+                <p className="mt-1 text-2xl font-bold text-slate-800">{fmtCurrency(snapshot.prom_deuda_post_cond ?? 0)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Promedio deuda restante · solo con deuda &gt; $0
+                </p>
+              </div>
+              <div className="rounded-lg border bg-violet-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-violet-700">Plazo Promedio</p>
+                <p className="mt-1 text-2xl font-bold text-violet-800">
+                  {snapshot.plazo_promedio_aceptados ?? 0} <span className="text-base font-normal">sem.</span>
+                </p>
+                <p className="mt-1 text-xs text-violet-600/80">Plazo remanente · aceptados</p>
+              </div>
             </div>
-            <div className="rounded-lg border bg-green-50/60 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-green-700">
-                Prom. Condonación
-              </p>
-              <p className="mt-1 text-2xl font-bold text-green-800">{fmtCurrency(snapshot.prom_condonacion ?? 0)}</p>
-              <p className="mt-1 text-xs text-green-600/80">Promedio por acuerdo</p>
+
+            {/* Fila 3 — Cerrados, pagados, conversión */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-600">Casos Cerrados</p>
+                <p className="mt-1 text-2xl font-bold text-slate-800">{snapshot.count_cerrados ?? 0}</p>
+                <p className="mt-1 text-xs text-slate-500">Clientes cerrados sin pago</p>
+              </div>
+              <div className="rounded-lg border bg-blue-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-blue-700">Pagados — Monto</p>
+                <p className="mt-1 text-2xl font-bold text-blue-800">{fmtCurrency(snapshot.monto_pagado ?? 0)}</p>
+                <p className="mt-1 text-xs text-blue-600/80">Total $$ en flujo de pago</p>
+              </div>
+              <div className="rounded-lg border bg-blue-50/60 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-blue-700">Pagados — Clientes</p>
+                <p className="mt-1 text-2xl font-bold text-blue-800">{snapshot.count_pagados ?? 0}</p>
+                <p className="mt-1 text-xs text-blue-600/80">Clientes en flujo de pago</p>
+              </div>
+              <div className="rounded-lg border bg-indigo-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-indigo-700">Conversión</p>
+                <p className="mt-1 text-3xl font-bold text-indigo-800">{snapshot.conversion_pct}%</p>
+                <p className="mt-1 text-xs text-indigo-600/80">
+                  Pagados / (Acept. + Pagados) ·{" "}
+                  {(snapshot.por_status["aceptado"] ?? 0) + (snapshot.count_pagados ?? 0)} acuerdos
+                </p>
+              </div>
             </div>
-            <div className="rounded-lg border bg-slate-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
-                Prom. Deuda Post Cond.
-              </p>
-              <p className="mt-1 text-2xl font-bold text-slate-800">{fmtCurrency(snapshot.prom_deuda_post_cond ?? 0)}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Promedio · {snapshot.prom_csc_con_balloon > 0 ? `CSC c/balloon: ${fmtCurrency(snapshot.prom_csc_con_balloon)}` : "Sin balloon"}
-              </p>
-            </div>
-            <div className="rounded-lg border bg-slate-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
-                Cerrados
-              </p>
-              <p className="mt-1 text-2xl font-bold text-slate-800">{snapshot.count_cerrados ?? 0}</p>
-              <p className="mt-1 text-xs text-slate-500">Casos cerrados sin pago</p>
-            </div>
-            <div className="rounded-lg border bg-blue-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-blue-700">
-                Pagado
-              </p>
-              <p className="mt-1 text-2xl font-bold text-blue-800">{fmtCurrency(snapshot.monto_pagado ?? 0)}</p>
-              <p className="mt-1 text-xs text-blue-600/80">
-                Pago de intención · {snapshot.count_pagados ?? 0} cliente{(snapshot.count_pagados ?? 0) !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <div className="rounded-lg border bg-indigo-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-indigo-700">
-                Conversión
-              </p>
-              <p className="mt-1 text-3xl font-bold text-indigo-800">{snapshot.conversion_pct}%</p>
-              <p className="mt-1 text-xs text-indigo-600/80">
-                Pagados / (Acept. + Pagados) ·{" "}
-                {(snapshot.por_status["aceptado"] ?? 0) + (snapshot.count_pagados ?? 0)} acuerdos
-              </p>
-            </div>
+
           </div>
 
           {/* Pronóstico */}

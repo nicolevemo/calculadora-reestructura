@@ -21,6 +21,8 @@ export type AceptadoCerradoRow = {
   cc_aplicado: number;
   /** Cargo complementario balloon */
   balloon: number;
+  /** Plazo remanente del cliente en semanas */
+  plazo_remanente: number;
   status: "aceptado" | "cerrado";
   assigned_to_name: string | null;
 };
@@ -32,25 +34,30 @@ export type DailyReportSnapshot = {
   aceptados_hoy: AceptadoCerradoRow[];
   /** Todos los clientes actualmente en estado aceptado o cerrado. */
   todos_aceptados_cerrados: AceptadoCerradoRow[];
-  /** Condonación del día (acuerdos aceptados hoy). */
+
+  // ── Fila 1: condonación del día ───────────────────────────────────
+  /** Condonación del día (aceptados HOY). */
   condonacion_hoy: number;
+
+  // ── Fila 2: métricas de aceptados acumulados ──────────────────────
   /** Suma condonación de todos los actualmente 'aceptado'. */
   condonacion_aceptados: number;
-  /** Promedio condonación sobre todos los aceptados+cerrados. */
+  /** Promedio condonación — solo aceptados acumulados. */
   prom_condonacion: number;
-  /** Promedio deuda post condonación sobre todos los aceptados+cerrados. */
+  /** Promedio deuda post condonación — solo aceptados. */
   prom_deuda_post_cond: number;
-  /** Promedio CC aplicado solo para filas con balloon > 0. */
-  prom_csc_con_balloon: number;
-  /** Número de clientes en estado 'cerrado' (caso cerrado sin pago). */
+  /** Promedio plazo remanente — solo aceptados. */
+  plazo_promedio_aceptados: number;
+
+  // ── Fila 3: cerrados, pagados, conversión ─────────────────────────
+  /** Número de clientes en estado 'cerrado'. */
   count_cerrados: number;
-  /** Suma de pago_intencion de clientes en flujo de pago (pendiente_firma + firmado + aplicado). */
+  /** Suma pago_intencion de clientes en flujo de pago. */
   monto_pagado: number;
   /** Cantidad de clientes en flujo de pago. */
   count_pagados: number;
   /**
-   * Conversión: pagados / (aceptados + pagados) × 100.
-   * Aceptados = comprometidos, pagados = hicieron el pago de intención.
+   * Conversión: count_pagados / (count_aceptados + count_pagados) × 100.
    */
   conversion_pct: number;
   pronostico_llamadas: number;
@@ -117,6 +124,7 @@ function toAceptadoCerradoRow(
     deuda_post_condonacion: deuda_post,
     cc_aplicado,
     balloon,
+    plazo_remanente: plazo,
     status: (r.status as "aceptado" | "cerrado") ?? "aceptado",
     assigned_to_name: r.assigned_to_name ?? null,
   };
@@ -226,17 +234,19 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     .filter((r) => r.status === "aceptado")
     .reduce((sum, r) => sum + r.condonacion, 0);
 
-  // Promedios sobre todos los aceptados + cerrados
-  const n = todos_aceptados_cerrados.length;
-  const prom_condonacion = n > 0
-    ? Math.round(todos_aceptados_cerrados.reduce((s, r) => s + r.condonacion, 0) / n)
+  // Promedios — solo aceptados (excluye cerrados)
+  const soloAceptados = todos_aceptados_cerrados.filter((r) => r.status === "aceptado");
+  const nAc = soloAceptados.length;
+  const prom_condonacion = nAc > 0
+    ? Math.round(soloAceptados.reduce((s, r) => s + r.condonacion, 0) / nAc)
     : 0;
-  const prom_deuda_post_cond = n > 0
-    ? Math.round(todos_aceptados_cerrados.reduce((s, r) => s + r.deuda_post_condonacion, 0) / n)
+  // Solo aceptados con deuda_post_condonacion > 0
+  const aceptadosConDeuda = soloAceptados.filter((r) => r.deuda_post_condonacion > 0);
+  const prom_deuda_post_cond = aceptadosConDeuda.length > 0
+    ? Math.round(aceptadosConDeuda.reduce((s, r) => s + r.deuda_post_condonacion, 0) / aceptadosConDeuda.length)
     : 0;
-  const rowsConBalloon = todos_aceptados_cerrados.filter((r) => r.balloon > 0);
-  const prom_csc_con_balloon = rowsConBalloon.length > 0
-    ? Math.round(rowsConBalloon.reduce((s, r) => s + r.cc_aplicado, 0) / rowsConBalloon.length)
+  const plazo_promedio_aceptados = nAc > 0
+    ? Math.round(soloAceptados.reduce((s, r) => s + r.plazo_remanente, 0) / nAc)
     : 0;
 
   // Cerrados = casos cerrados sin pago (solo conteo)
@@ -269,7 +279,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     condonacion_aceptados,
     prom_condonacion,
     prom_deuda_post_cond,
-    prom_csc_con_balloon,
+    plazo_promedio_aceptados,
     count_cerrados,
     monto_pagado,
     count_pagados,
