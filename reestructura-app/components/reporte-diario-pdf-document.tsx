@@ -310,12 +310,13 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
   const totalBalloon = rows.reduce((s, r) => s + r.balloon, 0);
 
   return (
-    <View style={s.sectionBlock} wrap={false}>
-      <Text style={s.sectionTitle}>{title}</Text>
-      {rows.length === 0 ? (
-        <Text style={[s.bulletText, { color: C.muted }]}>Sin registros.</Text>
-      ) : (
-        <>
+    <View style={s.sectionBlock}>
+      {/* Title + header sticky together — never split across pages */}
+      <View wrap={false}>
+        <Text style={s.sectionTitle}>{title}</Text>
+        {rows.length === 0 ? (
+          <Text style={[s.bulletText, { color: C.muted }]}>Sin registros.</Text>
+        ) : (
           <View style={s.tableHeader}>
             <Text style={[s.colH, { width: colW.nombre }]}>Cliente</Text>
             <Text style={[s.colH, { width: colW.af }]}>AF</Text>
@@ -328,47 +329,53 @@ function AcCerTable({ rows, title }: { rows: AceptadoCerradoRow[]; title: string
             <Text style={[s.colH, { width: colW.balloon,textAlign: "right" }]}>Balloon</Text>
             <Text style={[s.colH, { width: colW.estado, textAlign: "center" }]}>Est.</Text>
           </View>
-          {rows.map((r, i) => {
-            const color = r.status === "aceptado" ? C.green : C.muted;
-            const label = r.status === "aceptado" ? "Ac." : "Ce.";
-            return (
-              <View key={i} style={s.tableRow}>
-                <Text style={[s.colVal, { width: colW.nombre }]}>{r.nombre}</Text>
-                <Text style={[s.colVal, { width: colW.af }]}>{r.af}</Text>
-                <Text style={[s.colVal, { width: colW.plat }]}>{r.plataforma ?? "—"}</Text>
-                <Text style={[s.colVal, { width: colW.saldo,  textAlign: "right" }]}>{fmtCurrency(r.saldo_reestructurar)}</Text>
-                <Text style={[s.colVal, { width: colW.pago,   textAlign: "right" }]}>{fmtCurrency(r.pago_intencion)}</Text>
-                <Text style={[s.colVal, { width: colW.cond,   textAlign: "right", color: C.green }]}>{fmtCurrency(r.condonacion)}</Text>
-                <Text style={[s.colVal, { width: colW.deuda,  textAlign: "right" }]}>{fmtCurrency(r.deuda_post_condonacion)}</Text>
-                <Text style={[s.colVal, { width: colW.cc,     textAlign: "right", color: C.blue }]}>{fmtCurrency(r.cc_aplicado)}</Text>
-                <Text style={[s.colVal, { width: colW.balloon,textAlign: "right", color: C.amber }]}>
-                  {r.balloon > 0 ? fmtCurrency(r.balloon) : "—"}
-                </Text>
-                <View style={{ width: colW.estado, alignItems: "center" }}>
-                  <View style={[s.statusBadge, { backgroundColor: `${color}22` }]}>
-                    <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
-                  </View>
-                </View>
+        )}
+      </View>
+
+      {/* Data rows — free to break across pages; each row stays together */}
+      {rows.map((r, i) => {
+        const color = r.status === "aceptado" ? C.green : C.muted;
+        const label = r.status === "aceptado" ? "Ac." : "Ce.";
+        return (
+          <View key={i} style={s.tableRow} wrap={false}>
+            <Text style={[s.colVal, { width: colW.nombre }]}>{r.nombre}</Text>
+            <Text style={[s.colVal, { width: colW.af }]}>{r.af}</Text>
+            <Text style={[s.colVal, { width: colW.plat }]}>{r.plataforma ?? "—"}</Text>
+            <Text style={[s.colVal, { width: colW.saldo,  textAlign: "right" }]}>{fmtCurrency(r.saldo_reestructurar)}</Text>
+            <Text style={[s.colVal, { width: colW.pago,   textAlign: "right" }]}>{fmtCurrency(r.pago_intencion)}</Text>
+            <Text style={[s.colVal, { width: colW.cond,   textAlign: "right", color: C.green }]}>{fmtCurrency(r.condonacion)}</Text>
+            <Text style={[s.colVal, { width: colW.deuda,  textAlign: "right" }]}>{fmtCurrency(r.deuda_post_condonacion)}</Text>
+            <Text style={[s.colVal, { width: colW.cc,     textAlign: "right", color: C.blue }]}>{fmtCurrency(r.cc_aplicado)}</Text>
+            <Text style={[s.colVal, { width: colW.balloon,textAlign: "right", color: C.amber }]}>
+              {r.balloon > 0 ? fmtCurrency(r.balloon) : "—"}
+            </Text>
+            <View style={{ width: colW.estado, alignItems: "center" }}>
+              <View style={[s.statusBadge, { backgroundColor: `${color}22` }]}>
+                <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
               </View>
-            );
-          })}
-          <View style={s.tableRowTotal}>
-            <Text style={[s.colValBold, { width: colW.nombre }]}>
-              TOTAL — {rows.length} acuerdo{rows.length !== 1 ? "s" : ""}
-            </Text>
-            <Text style={{ width: colW.af }} />
-            <Text style={{ width: colW.plat }} />
-            <Text style={[s.colValBold, { width: colW.saldo,  textAlign: "right" }]}>{fmtCurrency(totalSaldo)}</Text>
-            <Text style={[s.colValBold, { width: colW.pago,   textAlign: "right" }]}>{fmtCurrency(totalPago)}</Text>
-            <Text style={[s.colValBold, { width: colW.cond,   textAlign: "right", color: C.green }]}>{fmtCurrency(totalCond)}</Text>
-            <Text style={[s.colValBold, { width: colW.deuda,  textAlign: "right" }]}>{fmtCurrency(totalDeuda)}</Text>
-            <Text style={[s.colValBold, { width: colW.cc,     textAlign: "right", color: C.blue }]}>{fmtCurrency(totalCC)}</Text>
-            <Text style={[s.colValBold, { width: colW.balloon,textAlign: "right", color: C.amber }]}>
-              {totalBalloon > 0 ? fmtCurrency(totalBalloon) : "—"}
-            </Text>
-            <Text style={{ width: colW.estado }} />
+            </View>
           </View>
-        </>
+        );
+      })}
+
+      {/* Total row — never split */}
+      {rows.length > 0 && (
+        <View style={s.tableRowTotal} wrap={false}>
+          <Text style={[s.colValBold, { width: colW.nombre }]}>
+            TOTAL — {rows.length} acuerdo{rows.length !== 1 ? "s" : ""}
+          </Text>
+          <Text style={{ width: colW.af }} />
+          <Text style={{ width: colW.plat }} />
+          <Text style={[s.colValBold, { width: colW.saldo,  textAlign: "right" }]}>{fmtCurrency(totalSaldo)}</Text>
+          <Text style={[s.colValBold, { width: colW.pago,   textAlign: "right" }]}>{fmtCurrency(totalPago)}</Text>
+          <Text style={[s.colValBold, { width: colW.cond,   textAlign: "right", color: C.green }]}>{fmtCurrency(totalCond)}</Text>
+          <Text style={[s.colValBold, { width: colW.deuda,  textAlign: "right" }]}>{fmtCurrency(totalDeuda)}</Text>
+          <Text style={[s.colValBold, { width: colW.cc,     textAlign: "right", color: C.blue }]}>{fmtCurrency(totalCC)}</Text>
+          <Text style={[s.colValBold, { width: colW.balloon,textAlign: "right", color: C.amber }]}>
+            {totalBalloon > 0 ? fmtCurrency(totalBalloon) : "—"}
+          </Text>
+          <Text style={{ width: colW.estado }} />
+        </View>
       )}
     </View>
   );
