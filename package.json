@@ -6,7 +6,7 @@
     "install:app": "npm install --prefix reestructura-app",
     "dev": "npm run dev --prefix reestructura-app",
     "clean": "npm run clean --prefix reestructura-app",
-    "build": "npm run build --prefix reestructura-app",
+    "build": "npm install --prefix reestructura-app && npm run build --prefix reestructura-app",
     "lint": "npm run lint --prefix reestructura-app",
     "test": "npm run test --prefix reestructura-app"
   }
