@@ -82,7 +82,7 @@ export async function saveNegociacion(
       } = await supabase.auth.getUser();
       if (!user) return { ok: false, error: "No autenticado" };
       const sessionProfile = await getSessionProfile(supabase, user);
-      lastActivityBy = sessionProfile.id ?? null;
+      lastActivityBy = user.id ?? null;
       userRole = sessionProfile.role;
     } else {
       userRole = "admin";
