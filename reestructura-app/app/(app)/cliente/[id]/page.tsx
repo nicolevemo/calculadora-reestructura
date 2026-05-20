@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
+import { ClienteModalShell } from "@/components/cliente/cliente-modal-shell";
 import { ClienteWorkspace } from "@/components/cliente/cliente-workspace";
 import type { ActividadLogEntry } from "@/components/cliente/cliente-seguimiento-panel";
 import { listAssignableAgents } from "@/lib/assignable-agents";
@@ -170,14 +171,16 @@ export default async function ClientePage({ params }: { params: { id: string } }
   };
 
   return (
-    <ClienteWorkspace
-      key={negociacion.updated_at}
-      cliente={clienteShape}
-      negociacion={negociacion}
-      actividadLog={actividadLog}
-      assignableAgents={assignableAgents}
-      canAssign={canAssign}
-      isAdmin={isAdmin}
-    />
+    <ClienteModalShell>
+      <ClienteWorkspace
+        key={negociacion.updated_at}
+        cliente={clienteShape}
+        negociacion={negociacion}
+        actividadLog={actividadLog}
+        assignableAgents={assignableAgents}
+        canAssign={canAssign}
+        isAdmin={isAdmin}
+      />
+    </ClienteModalShell>
   );
 }

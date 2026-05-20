@@ -20,6 +20,12 @@ import {
 import { PagoIntencionBlock } from "@/components/cliente/pago-intencion-block";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -197,6 +203,7 @@ export function ClienteWorkspace({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   const isEnPagoFlow = PAGADO_STATUSES.includes(status);
   // El selector principal muestra "pagado" como valor agrupado para todo el flujo de firma
@@ -235,10 +242,64 @@ export function ClienteWorkspace({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [isDirty]);
 
-  const confirmLeave = useCallback(() => {
-    if (!isDirty) return true;
-    return window.confirm(UNSAVED_LEAVE_MESSAGE);
-  }, [isDirty]);
+  const handleBackClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (isDirty) {
+        event.preventDefault();
+        setShowLeaveDialog(true);
+      }
+    },
+    [isDirty]
+  );
+
+  const handleLeaveWithoutSaving = useCallback(() => {
+    setShowLeaveDialog(false);
+    router.push("/dashboard");
+  }, [router]);
+
+  const handleSaveAndLeave = useCallback(() => {
+    setSaveError(null);
+    setSaveOk(false);
+    startTransition(async () => {
+      try {
+        const res = await saveNegociacion({
+          clienteId: cliente.id,
+          negociacionId: negociacion.id,
+          status,
+          pago_intencion: pagoLive > 0 ? pagoLive : null,
+          fecha_compromiso: fechaCompromiso.trim() || null,
+          motivo_rechazo: motivoRechazo.trim() || null,
+          motivo_cierre: motivoCierre.trim() || null,
+          fecha_pago: fechaPago.trim() || null,
+          notes: notes.trim() || null,
+          bono_pronto_pago: bonoProntoPago,
+        });
+        if (!res.ok) {
+          setSaveError(res.error);
+          setShowLeaveDialog(false);
+          return;
+        }
+        router.push("/dashboard");
+      } catch (e) {
+        setSaveError(
+          e instanceof Error ? e.message : "No se pudo guardar. Revisá la consola o probá de nuevo."
+        );
+        setShowLeaveDialog(false);
+      }
+    });
+  }, [
+    cliente.id,
+    negociacion.id,
+    status,
+    pagoLive,
+    fechaCompromiso,
+    motivoRechazo,
+    motivoCierre,
+    fechaPago,
+    notes,
+    bonoProntoPago,
+    router,
+  ]);
 
   const fechaCompromisoLabel = useMemo(
     () =>
@@ -284,18 +345,89 @@ export function ClienteWorkspace({
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-6">
+      {/* Dialog de cambios sin guardar */}
+      <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tenés cambios sin guardar</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Si salís ahora se van a perder los cambios que hiciste en este cliente.
+            ¿Qué querés hacer?
+          </p>
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowLeaveDialog(false)}
+            >
+              Seguir editando
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLeaveWithoutSaving}
+            >
+              Salir sin guardar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveAndLeave}
+              disabled={pending}
+            >
+              {pending ? "Guardando…" : "Guardar y salir"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-wrap items-center gap-2 border-b pb-4">
         <Button variant="outline" size="sm" asChild>
-          <Link
-            href="/dashboard"
-            onClick={(event) => {
-              if (!confirmLeave()) event.preventDefault();
-            }}
-          >
+          <Link href="/dashboard" onClick={handleBackClick}>
             ← Volver al dashboard
           </Link>
         </Button>
+        {isDirty ? (
+          <span className="hidden text-sm text-amber-700 sm:block">
+            Cambios sin guardar
+          </span>
+        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="min-w-[180px]">
+            <Label className="sr-only">Estado de la llamada</Label>
+            <Select
+              value={selectorValue}
+              onValueChange={(v) => {
+                if (v === "pagado") {
+                  setStatus("pendiente_firma");
+                } else {
+                  setStatus(v as CallStatus);
+                }
+              }}
+            >
+              <SelectTrigger aria-label="Estado de la llamada">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_SELECTOR.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS[s].label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="pagado">Pagado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={pending || !isDirty}
+            variant={isDirty ? "default" : "outline"}
+          >
+            {pending ? "Guardando…" : "Guardar cambios"}
+          </Button>
+        </div>
       </div>
 
       <header className="flex flex-col gap-4 border-b pb-4 lg:flex-row lg:items-start lg:justify-between">
@@ -376,48 +508,8 @@ export function ClienteWorkspace({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm capitalize text-muted-foreground">{todayMx()}</p>
-          {isDirty ? (
-            <p className="text-sm text-amber-800">{UNSAVED_LEAVE_MESSAGE}</p>
-          ) : null}
-        </div>
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-          <div className="w-full min-w-[200px] max-w-xs">
-            <Label className="sr-only">Estado de la llamada</Label>
-            <Select
-              value={selectorValue}
-              onValueChange={(v) => {
-                if (v === "pagado") {
-                  setStatus("pendiente_firma");
-                } else {
-                  setStatus(v as CallStatus);
-                }
-              }}
-            >
-              <SelectTrigger aria-label="Estado de la llamada">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_SELECTOR.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {STATUS[s].label}
-                  </SelectItem>
-                ))}
-                <SelectItem value="pagado">Pagado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={pending || !isDirty}
-            variant={isDirty ? "default" : "outline"}
-          >
-            {pending ? "Guardando…" : "Guardar cambios"}
-          </Button>
-        </div>
+      <div className="flex items-center rounded-lg border bg-muted/30 px-4 py-2.5">
+        <p className="text-sm capitalize text-muted-foreground">{todayMx()}</p>
       </div>
 
       {saveError ? (
