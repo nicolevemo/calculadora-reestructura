@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Trash2, X } from "lucide-react";
+import { CalendarIcon, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AssigneeSelect } from "@/components/assignee-select";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -35,6 +37,24 @@ import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
 type StatusFilter = CallStatus | "all";
 // "all" | "unassigned" | "mine" | <agent-uuid>
 type AssignFilter = string;
+// "all" | "YYYY-MM-DD" (lunes de la semana)
+type WeekFilter = string;
+
+/** Devuelve "YYYY-MM-DD" del lunes de la semana a la que pertenece la fecha. */
+function toWeekMonday(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = d.getUTCDay(); // 0=Dom, 1=Lun …
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setUTCDate(d.getUTCDate() + diff);
+  return monday.toISOString().slice(0, 10);
+}
+
+/** Formatea "YYYY-MM-DD" como "DD/MM/YYYY" para mostrar. */
+function fmtWeekLabel(mondayISO: string): string {
+  const [y, m, dd] = mondayISO.split("-");
+  return `Semana del ${dd}/${m}/${y}`;
+}
 
 function fmtApi(u: boolean | null | undefined, d: boolean | null | undefined) {
   const parts: string[] = [];
@@ -66,10 +86,50 @@ export function DashboardClients({
 }) {
   const router = useRouter();
   const defaultAssignFilter: AssignFilter = canAssign ? "all" : currentUserId ? "mine" : "all";
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [assignFilter, setAssignFilter] = useState<AssignFilter>(defaultAssignFilter);
-  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
-  const [q, setQ] = useState("");
+
+  // ── Persistencia de filtros por usuario en localStorage ─────────────
+  const storageKey = `dashboard-filters-${currentUserId ?? "anon"}`;
+
+  function loadSaved() {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? (JSON.parse(raw) as {
+        status?: string;
+        assignFilter?: string;
+        weekFilter?: string;
+        dateFilter?: string | null;
+        onlyDuplicates?: boolean;
+        q?: string;
+      }) : null;
+    } catch { return null; }
+  }
+
+  const saved = loadSaved();
+
+  const [status, setStatus] = useState<StatusFilter>((saved?.status as StatusFilter) ?? "all");
+  const [assignFilter, setAssignFilter] = useState<AssignFilter>(saved?.assignFilter ?? defaultAssignFilter);
+  const [weekFilter, setWeekFilter] = useState<WeekFilter>(saved?.weekFilter ?? "all");
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(
+    saved?.dateFilter ? new Date(saved.dateFilter) : undefined
+  );
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [onlyDuplicates, setOnlyDuplicates] = useState(saved?.onlyDuplicates ?? false);
+  const [q, setQ] = useState(saved?.q ?? "");
+
+  // Guarda filtros en localStorage cada vez que cambian
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        status,
+        assignFilter,
+        weekFilter,
+        dateFilter: dateFilter?.toISOString() ?? null,
+        onlyDuplicates,
+        q,
+      }));
+    } catch { /* storage lleno o bloqueado, ignorar */ }
+  }, [storageKey, status, assignFilter, weekFilter, dateFilter, onlyDuplicates, q]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [exportBusy, setExportBusy] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
@@ -86,12 +146,23 @@ export function DashboardClients({
     const byAgent = Object.fromEntries(
       assignableAgents.map((a) => [a.id, rows.filter((r) => r.assigned_to === a.id).length])
     );
+    // Semanas de carga distintas (más reciente primero)
+    const weekMap = new Map<string, number>();
+    rows.forEach((r) => {
+      if (r.created_at) {
+        const key = toWeekMonday(r.created_at);
+        weekMap.set(key, (weekMap.get(key) ?? 0) + 1);
+      }
+    });
+    const weeks = Array.from(weekMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]));
     return {
       total: rows.length,
       byStatus,
       byAgent,
       unassigned: rows.filter((r) => !r.assigned_to).length,
       duplicates: rows.filter((r) => r.is_duplicate).length,
+      weeks,
     };
   }, [rows, assignableAgents]);
 
@@ -107,6 +178,13 @@ export function DashboardClients({
     } else if (assignFilter !== "all") {
       r = r.filter((row) => row.assigned_to === assignFilter);
     }
+    if (weekFilter !== "all") {
+      r = r.filter((row) => row.created_at && toWeekMonday(row.created_at) === weekFilter);
+    }
+    if (dateFilter) {
+      const target = dateFilter.toISOString().slice(0, 10);
+      r = r.filter((row) => row.created_at && row.created_at.slice(0, 10) === target);
+    }
     if (onlyDuplicates) {
       r = r.filter((row) => row.is_duplicate);
     }
@@ -119,7 +197,7 @@ export function DashboardClients({
       );
     }
     return r;
-  }, [rows, status, assignFilter, currentUserId, onlyDuplicates, q]);
+  }, [rows, status, assignFilter, weekFilter, dateFilter, currentUserId, onlyDuplicates, q]);
 
   /** Stats computed from the currently filtered rows — power the stat cards */
   const filteredStats = useMemo(() => {
@@ -218,11 +296,13 @@ export function DashboardClients({
   }, [router, selectedIds]);
 
   const hasActiveFilters =
-    status !== "all" || assignFilter !== defaultAssignFilter || onlyDuplicates || q.trim() !== "";
+    status !== "all" || assignFilter !== defaultAssignFilter || weekFilter !== "all" || dateFilter !== undefined || onlyDuplicates || q.trim() !== "";
 
   const clearFilters = useCallback(() => {
     setStatus("all");
     setAssignFilter(defaultAssignFilter);
+    setWeekFilter("all");
+    setDateFilter(undefined);
     setOnlyDuplicates(false);
     setQ("");
   }, [defaultAssignFilter]);
@@ -332,6 +412,56 @@ export function DashboardClients({
             ) : null}
           </SelectContent>
         </Select>
+
+        {/* Semana de carga */}
+        {totalStats.weeks.length > 0 ? (
+          <Select value={weekFilter} onValueChange={setWeekFilter}>
+            <SelectTrigger className="h-9 w-[220px] text-sm">
+              <SelectValue placeholder="Semana de carga: Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las semanas</SelectItem>
+              <div className="mx-1 my-1 h-px bg-border" />
+              <SelectGroup>
+                {totalStats.weeks.map(([monday, count]) => (
+                  <SelectItem key={monday} value={monday}>
+                    {fmtWeekLabel(monday)} ({count})
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        ) : null}
+
+        {/* Fecha exacta (calendario) */}
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant={dateFilter ? "default" : "outline"}
+              size="sm"
+              className="h-9 gap-1.5 text-sm font-normal"
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              {dateFilter
+                ? dateFilter.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })
+                : "Fecha exacta"}
+              {dateFilter ? (
+                <X
+                  className="h-3 w-3 ml-0.5 opacity-70 hover:opacity-100"
+                  onClick={(e) => { e.stopPropagation(); setDateFilter(undefined); }}
+                />
+              ) : null}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateFilter}
+              onSelect={(d) => { setDateFilter(d); setCalendarOpen(false); }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
 
         {/* Búsqueda */}
         <div className="flex-1 min-w-[180px] max-w-xs">
