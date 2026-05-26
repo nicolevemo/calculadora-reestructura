@@ -458,7 +458,7 @@ export function DashboardClients({
               mode="single"
               selected={dateFilter}
               onSelect={(d) => { setDateFilter(d); setCalendarOpen(false); }}
-              initialFocus
+              autoFocus
             />
           </PopoverContent>
         </Popover>
