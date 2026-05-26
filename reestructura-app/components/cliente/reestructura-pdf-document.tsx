@@ -229,12 +229,19 @@ function TycBlockNode({ block, index }: { block: TycBlock; index: number }) {
 }
 
 // ─── Component ───────────────────────────────────────────────────────
+/**
+ * - "completo": T&C (págs. 1-8) + Anexo + Firma
+ * - "anexo": solo el Anexo y la Firma (2 páginas)
+ */
+export type ReestructuraPdfVariant = "completo" | "anexo";
+
 export type ReestructuraPdfDocumentProps = {
   nombre: string;
   af: string;
   plazoRemanente: number;
   fechaCompromisoIso: string;
   calc: CalculatorResult;
+  variant?: ReestructuraPdfVariant;
 };
 
 export function ReestructuraPdfDocument({
@@ -243,6 +250,7 @@ export function ReestructuraPdfDocument({
   plazoRemanente,
   fechaCompromisoIso,
   calc,
+  variant = "completo",
 }: ReestructuraPdfDocumentProps) {
   const schedule = buildPdfScheduleDates(fechaCompromisoIso, plazoRemanente);
   const semanasRestantes = Math.max(1, Math.floor(plazoRemanente));
@@ -265,26 +273,28 @@ export function ReestructuraPdfDocument({
 
   return (
     <Document>
-      {/* ─── Páginas 1 a 8: Términos y Condiciones ─── */}
-      <Page size="A4" style={styles.page}>
-        <View style={styles.tycHeader}>
-          <Text style={styles.tycTitle}>{TYC_TITLE}</Text>
-          <Text style={styles.tycDate}>{TYC_DATE}</Text>
-        </View>
+      {/* ─── Páginas 1 a 8: Términos y Condiciones (solo si variant = "completo") ─── */}
+      {variant === "completo" ? (
+        <Page size="A4" style={styles.page}>
+          <View style={styles.tycHeader}>
+            <Text style={styles.tycTitle}>{TYC_TITLE}</Text>
+            <Text style={styles.tycDate}>{TYC_DATE}</Text>
+          </View>
 
-        {TYC_BLOCKS.map((block, idx) => (
-          <TycBlockNode key={idx} block={block} index={idx} />
-        ))}
+          {TYC_BLOCKS.map((block, idx) => (
+            <TycBlockNode key={idx} block={block} index={idx} />
+          ))}
 
-        <View style={styles.pageFooter} fixed>
-          <Text>VEMO Impulso · Programa de Regularización</Text>
-          <Text
-            render={({ pageNumber, totalPages }) =>
-              `Página ${pageNumber} de ${totalPages}`
-            }
-          />
-        </View>
-      </Page>
+          <View style={styles.pageFooter} fixed>
+            <Text>VEMO Impulso · Programa de Regularización</Text>
+            <Text
+              render={({ pageNumber, totalPages }) =>
+                `Página ${pageNumber} de ${totalPages}`
+              }
+            />
+          </View>
+        </Page>
+      ) : null}
 
       {/* ─── Anexo de Condiciones Específicas ─── */}
       <Page size="A4" style={styles.page}>

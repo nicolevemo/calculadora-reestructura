@@ -1,10 +1,13 @@
 "use client";
 
-import { MessageCircle, FileDown } from "lucide-react";
+import { MessageCircle, FileDown, FileText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 
-import { ReestructuraPdfDocument } from "@/components/cliente/reestructura-pdf-document";
+import {
+  ReestructuraPdfDocument,
+  type ReestructuraPdfVariant,
+} from "@/components/cliente/reestructura-pdf-document";
 import { Button } from "@/components/ui/button";
 import { STATUS, RULES } from "@/lib/constants";
 import type { CalculatorResult, CallStatus } from "@/lib/types";
@@ -42,7 +45,7 @@ export function ClienteCommsPanel({
   fechaCompromisoLabel,
   calc,
 }: Props) {
-  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState<ReestructuraPdfVariant | null>(null);
 
   const whatsappMessage = useMemo(() => {
     const lines = [
@@ -74,56 +77,77 @@ export function ClienteCommsPanel({
     [cliente.telefono, whatsappMessage]
   );
 
-  const downloadPdf = useCallback(async () => {
-    setPdfBusy(true);
-    try {
-      const blob = await pdf(
-        <ReestructuraPdfDocument
-          nombre={cliente.nombre}
-          af={cliente.af}
-          plazoRemanente={plazoRemanente}
-          fechaCompromisoIso={fechaCompromisoIso}
-          calc={calc}
-        />
-      ).toBlob();
+  const downloadPdf = useCallback(
+    async (variant: ReestructuraPdfVariant) => {
+      setPdfBusy(variant);
+      try {
+        const blob = await pdf(
+          <ReestructuraPdfDocument
+            nombre={cliente.nombre}
+            af={cliente.af}
+            plazoRemanente={plazoRemanente}
+            fechaCompromisoIso={fechaCompromisoIso}
+            calc={calc}
+            variant={variant}
+          />
+        ).toBlob();
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safeAf = cliente.af.replace(/[^\w.-]+/g, "_");
-      a.download = `anexo-condiciones-${safeAf}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } finally {
-      setPdfBusy(false);
-    }
-  }, [calc, cliente.af, cliente.nombre, fechaCompromisoIso, plazoRemanente]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const safeAf = cliente.af.replace(/[^\w.-]+/g, "_");
+        const prefix =
+          variant === "completo" ? "acuerdo-regularizacion" : "anexo-condiciones";
+        a.download = `${prefix}-${safeAf}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } finally {
+        setPdfBusy(null);
+      }
+    },
+    [calc, cliente.af, cliente.nombre, fechaCompromisoIso, plazoRemanente]
+  );
 
   return (
     <div className="space-y-4 rounded-lg border bg-card p-4 text-sm shadow-sm">
       <div>
         <h3 className="font-semibold">PDF y WhatsApp</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Descargá el resumen en PDF y abrí WhatsApp con el número del cliente (si está en el CSV /
-          ficha). Adjuntá el PDF manualmente en el chat.
+          Descargá el acuerdo completo (Términos y Condiciones + Anexo) o únicamente el Anexo de
+          Condiciones Específicas para el cliente. Adjuntá el PDF en WhatsApp manualmente.
         </p>
       </div>
 
-      <Button
-        type="button"
-        className="w-full justify-start gap-2"
-        variant="secondary"
-        disabled={pdfBusy}
-        onClick={() => void downloadPdf()}
-      >
-        <FileDown className="h-4 w-4 shrink-0" />
-        {pdfBusy ? "Generando PDF…" : "Descargar PDF (local)"}
-      </Button>
+      <div className="space-y-2">
+        <Button
+          type="button"
+          className="w-full justify-start gap-2"
+          variant="default"
+          disabled={pdfBusy !== null}
+          onClick={() => void downloadPdf("completo")}
+        >
+          <FileText className="h-4 w-4 shrink-0" />
+          {pdfBusy === "completo"
+            ? "Generando PDF…"
+            : "Descargar PDF completo (T&C + Anexo)"}
+        </Button>
+
+        <Button
+          type="button"
+          className="w-full justify-start gap-2"
+          variant="secondary"
+          disabled={pdfBusy !== null}
+          onClick={() => void downloadPdf("anexo")}
+        >
+          <FileDown className="h-4 w-4 shrink-0" />
+          {pdfBusy === "anexo" ? "Generando PDF…" : "Descargar solo Anexo (2 págs.)"}
+        </Button>
+      </div>
 
       {waUrl ? (
-        <Button type="button" className="w-full justify-start gap-2" variant="default" asChild>
+        <Button type="button" className="w-full justify-start gap-2" variant="outline" asChild>
           <a href={waUrl} target="_blank" rel="noopener noreferrer">
             <MessageCircle className="h-4 w-4 shrink-0" />
             Abrir WhatsApp con el cliente
