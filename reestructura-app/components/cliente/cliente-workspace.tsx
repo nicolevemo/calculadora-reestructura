@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 
 import { saveNegociacion } from "@/app/actions/negociacion";
 import { AssigneeSelect } from "@/components/assignee-select";
+import { ClienteAdminEditPanel } from "@/components/cliente/cliente-admin-edit-panel";
 import { ClienteCommsPanel } from "@/components/cliente/cliente-comms-panel";
 import {
   ClienteSeguimientoPanel,
@@ -149,7 +150,7 @@ export function ClienteWorkspace({
   actividadLog,
   assignableAgents,
   canAssign,
-  isAdmin: _isAdmin = false,
+  isAdmin = false,
 }: ClienteWorkspaceProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -388,6 +389,25 @@ export function ClienteWorkspace({
             ← Volver al dashboard
           </Link>
         </Button>
+        {isAdmin ? (
+          <ClienteAdminEditPanel
+            clienteId={cliente.id}
+            initial={{
+              af: cliente.af,
+              nombre: cliente.nombre,
+              telefono: cliente.telefono,
+              vehiculo: cliente.vehiculo,
+              plataforma: cliente.plataforma,
+              originacion_vehiculo: cliente.originacion_vehiculo,
+              plazo_remanente: cliente.plazo_remanente,
+              adeudo: cliente.adeudo,
+              semana: cliente.semana,
+              semana_siguiente: cliente.semana_siguiente,
+              ingresos_api: cliente.ingresos_api,
+              viajes_api: cliente.viajes_api,
+            }}
+          />
+        ) : null}
         {isDirty ? (
           <span className="hidden text-sm text-amber-700 sm:block">
             Cambios sin guardar

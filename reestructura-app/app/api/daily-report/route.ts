@@ -149,6 +149,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
     "aceptado",
     "rechazado",
     "necesita_revision",
+    "enviado_recuperar",
     "cerrado",
     "pendiente_firma",
     "firmado",

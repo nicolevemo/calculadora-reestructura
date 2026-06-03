@@ -16,13 +16,14 @@ export const STATUS = {
   aceptado:          { label: "Aceptado",              color: "green" },
   rechazado:         { label: "Rechazado",             color: "red" },
   necesita_revision: { label: "Necesita revisión",     color: "purple" },
+  enviado_recuperar: { label: "Enviado a Recuperar",   color: "orange" },
   cerrado:           { label: "Cerrado",               color: "slate" },
   pendiente_firma:   { label: "Pendiente de firma",    color: "blue" },
   firmado:           { label: "Firmado",               color: "green" },
   aplicado:          { label: "Aplicado",              color: "green" },
 } as const satisfies Record<
   CallStatus,
-  { label: string; color: "gray" | "amber" | "blue" | "green" | "red" | "purple" | "slate" }
+  { label: string; color: "gray" | "amber" | "blue" | "green" | "red" | "purple" | "slate" | "orange" }
 >;
 
 export const STATUS_ORDER: CallStatus[] = [
@@ -32,6 +33,7 @@ export const STATUS_ORDER: CallStatus[] = [
   "aceptado",
   "rechazado",
   "necesita_revision",
+  "enviado_recuperar",
   "cerrado",
   "pendiente_firma",
   "firmado",
@@ -49,6 +51,7 @@ export const STATUS_SELECTOR: CallStatus[] = [
   "aceptado",
   "rechazado",
   "necesita_revision",
+  "enviado_recuperar",
   "cerrado",
 ];
 

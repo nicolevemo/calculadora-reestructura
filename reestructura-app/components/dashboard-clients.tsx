@@ -368,7 +368,7 @@ export function DashboardClients({
             <div className="mx-1 my-1 h-px bg-border" />
             <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Gestión</div>
             <SelectGroup>
-              {(["listo_contactar","sin_respuesta","en_negociacion","aceptado","rechazado","necesita_revision","cerrado"] as CallStatus[]).map((s) => (
+              {(["listo_contactar","sin_respuesta","en_negociacion","aceptado","rechazado","necesita_revision","enviado_recuperar","cerrado"] as CallStatus[]).map((s) => (
                 <SelectItem key={s} value={s}>
                   {STATUS[s].label} ({totalStats.byStatus[s] ?? 0})
                 </SelectItem>
