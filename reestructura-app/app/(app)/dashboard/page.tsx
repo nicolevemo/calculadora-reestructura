@@ -9,6 +9,7 @@ import {
   isDevServerDataOverride,
 } from "@/lib/dev-auth-bypass";
 import { getSessionProfile } from "@/lib/session-profile";
+import { fetchAllRows } from "@/lib/supabase/fetch-all-rows";
 import { createClient } from "@/lib/supabase/server";
 import type { ClienteDashboardRow, UserRole } from "@/lib/types";
 
@@ -44,13 +45,16 @@ export default async function DashboardPage() {
   let assignableAgents: Awaited<ReturnType<typeof listAssignableAgents>> = [];
 
   if (canRead) {
-    const { data, error } = await supabase
-      .from("v_clientes_dashboard")
-      .select(DASHBOARD_SELECT)
-      .order("created_at", { ascending: false });
+    const { data, error } = await fetchAllRows<ClienteDashboardRow>((from, to) =>
+      supabase
+        .from("v_clientes_dashboard")
+        .select(DASHBOARD_SELECT)
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    );
 
-    if (error) loadError = error.message;
-    else rows = (data ?? []) as ClienteDashboardRow[];
+    if (error) loadError = error;
+    else rows = data;
 
     try {
       assignableAgents = await listAssignableAgents(supabase);

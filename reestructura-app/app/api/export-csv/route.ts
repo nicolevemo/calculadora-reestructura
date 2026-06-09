@@ -7,6 +7,7 @@ import { isClienteExportado } from "@/lib/cliente-export";
 import { exportDashboardRowsToCsv } from "@/lib/export-csv";
 import { isDevAuthBypass, isDevServerDataOverride } from "@/lib/dev-auth-bypass";
 import { getSessionProfile } from "@/lib/session-profile";
+import { fetchAllRows } from "@/lib/supabase/fetch-all-rows";
 import { createClient } from "@/lib/supabase/server";
 import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
 
@@ -99,25 +100,27 @@ export async function GET(request: Request) {
     const auth = await authorizeGestorExport(supabase);
     if (!auth.ok) return auth.response;
 
-    let query = supabase
-      .from("v_clientes_dashboard")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await fetchAllRows<ClienteDashboardRow>((from, to) => {
+      let query = supabase
+        .from("v_clientes_dashboard")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (statusParam) {
-      query = query.eq("status", statusParam);
-    }
-    if (uploadId?.trim()) {
-      query = query.eq("upload_id", uploadId.trim());
-    }
+      if (statusParam) {
+        query = query.eq("status", statusParam);
+      }
+      if (uploadId?.trim()) {
+        query = query.eq("upload_id", uploadId.trim());
+      }
 
-    const { data, error } = await query;
+      return query.range(from, to);
+    });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error }, { status: 500 });
     }
 
-    const rows = (data ?? []) as ClienteDashboardRow[];
+    const rows = data;
     const csv = exportDashboardRowsToCsv(rows);
 
     const slug = statusParam ?? "todos";

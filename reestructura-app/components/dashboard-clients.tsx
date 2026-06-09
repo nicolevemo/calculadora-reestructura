@@ -39,6 +39,10 @@ type StatusFilter = CallStatus | "all";
 type AssignFilter = string;
 // "all" | "YYYY-MM-DD" (lunes de la semana)
 type WeekFilter = string;
+// número de filas por página, o "all" para mostrar todo
+type PageSize = number | "all";
+
+const PAGE_SIZE_OPTIONS = [50, 100, 200, 500] as const;
 
 /** Devuelve "YYYY-MM-DD" del lunes de la semana a la que pertenece la fecha. */
 function toWeekMonday(dateStr: string): string {
@@ -101,6 +105,7 @@ export function DashboardClients({
         dateFilter?: string | null;
         onlyDuplicates?: boolean;
         q?: string;
+        pageSize?: PageSize;
       }) : null;
     } catch { return null; }
   }
@@ -116,6 +121,8 @@ export function DashboardClients({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [onlyDuplicates, setOnlyDuplicates] = useState(saved?.onlyDuplicates ?? false);
   const [q, setQ] = useState(saved?.q ?? "");
+  const [pageSize, setPageSize] = useState<PageSize>(saved?.pageSize ?? 50);
+  const [page, setPage] = useState(1);
 
   // Guarda filtros en localStorage cada vez que cambian
   useEffect(() => {
@@ -127,9 +134,10 @@ export function DashboardClients({
         dateFilter: dateFilter?.toISOString() ?? null,
         onlyDuplicates,
         q,
+        pageSize,
       }));
     } catch { /* storage lleno o bloqueado, ignorar */ }
-  }, [storageKey, status, assignFilter, weekFilter, dateFilter, onlyDuplicates, q]);
+  }, [storageKey, status, assignFilter, weekFilter, dateFilter, onlyDuplicates, q, pageSize]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [exportBusy, setExportBusy] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
@@ -199,6 +207,25 @@ export function DashboardClients({
     return r;
   }, [rows, status, assignFilter, weekFilter, dateFilter, currentUserId, onlyDuplicates, q]);
 
+  // ── Paginación (cliente): los datos ya vienen completos del server ──
+  const totalRows = filtered.length;
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalRows / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  // Reset a la primera página cuando cambian los filtros o el tamaño de página
+  useEffect(() => {
+    setPage(1);
+  }, [filtered, pageSize]);
+
+  const paged = useMemo(() => {
+    if (pageSize === "all") return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, pageSize, currentPage]);
+
+  const rangeStart = totalRows === 0 ? 0 : pageSize === "all" ? 1 : (currentPage - 1) * pageSize + 1;
+  const rangeEnd = pageSize === "all" ? totalRows : Math.min(currentPage * pageSize, totalRows);
+
   /** Stats computed from the currently filtered rows — power the stat cards */
   const filteredStats = useMemo(() => {
     const count = (s: string) =>
@@ -214,6 +241,12 @@ export function DashboardClients({
     [filtered]
   );
 
+  /** Filas exportables visibles en la página actual (para la casilla del header) */
+  const exportablePaged = useMemo(
+    () => paged.filter((row) => !isClienteExportado(row.exported_at)),
+    [paged]
+  );
+
   useEffect(() => {
     const allowed = new Set(exportableFiltered.map((r) => r.id));
     setSelectedIds((prev) => {
@@ -226,19 +259,19 @@ export function DashboardClients({
   }, [exportableFiltered]);
 
   const allVisibleSelected =
-    exportableFiltered.length > 0 &&
-    exportableFiltered.every((r) => selectedIds.has(r.id));
+    exportablePaged.length > 0 &&
+    exportablePaged.every((r) => selectedIds.has(r.id));
 
   const toggleSelectAllVisible = useCallback(() => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      const vis = exportableFiltered.map((r) => r.id);
+      const vis = exportablePaged.map((r) => r.id);
       const allSel = vis.length > 0 && vis.every((id) => next.has(id));
       if (allSel) vis.forEach((id) => next.delete(id));
       else vis.forEach((id) => next.add(id));
       return next;
     });
-  }, [exportableFiltered]);
+  }, [exportablePaged]);
 
   const toggleOne = useCallback((id: string, exported: boolean) => {
     if (exported) return;
@@ -563,7 +596,7 @@ export function DashboardClients({
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((r) => {
+              paged.map((r) => {
                 const exported = isClienteExportado(r.exported_at);
                 const aceptadoExportado =
                   (r.status ?? "") === "aceptado" && exported;
@@ -683,6 +716,62 @@ export function DashboardClients({
           </TableBody>
         </Table>
       </div>
+
+      {/* ── Paginación ── */}
+      {totalRows > 0 ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Filas por página</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => setPageSize(v === "all" ? "all" : Number(v))}
+            >
+              <SelectTrigger className="h-9 w-[110px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+                <SelectItem value="all">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {rangeStart}–{rangeEnd} de {totalRows}
+            </span>
+            {pageSize !== "all" ? (
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <p className="text-xs text-muted-foreground">
         Tip: hacé clic en una fila para abrir el detalle del cliente.{" "}
