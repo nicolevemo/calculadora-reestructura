@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 
 import { calculate } from "@/lib/calculator";
+import { fmtDateTimeCsv } from "@/lib/format";
 import type { CalculatorClientInput, ClienteDashboardRow } from "@/lib/types";
 
 export function dashboardRowToCalculatorInput(row: ClienteDashboardRow): CalculatorClientInput {
@@ -61,6 +62,7 @@ export function dashboardRowToExportRecord(
     nueva_semanalidad: c.nuevaSemanalidad,
     bono_pronto_pago: Boolean(row.bono_pronto_pago),
     nueva_semanalidad_con_bono: c.nuevaSemanalidadConBono,
+    ultima_edicion: fmtDateTimeCsv(row.ultima_edicion),
     exportado: row.exported_at ? "si" : "no",
     exportado_en: row.exported_at ?? "",
   };

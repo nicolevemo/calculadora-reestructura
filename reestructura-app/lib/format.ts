@@ -51,6 +51,30 @@ export function fmtDate(value: string | null | undefined) {
   });
 }
 
+/**
+ * Formato numérico estable para CSV/Excel: "YYYY-MM-DD HH:mm" en la
+ * zona horaria de la app. Devuelve "" si no hay valor (para celdas vacías).
+ */
+export function fmtDateTimeCsv(value: string | null | undefined) {
+  if (!value) return "";
+  const parsed = parseDateTime(value);
+  if (!parsed) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: TIME_ZONE,
+  }).formatToParts(parsed);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return `${get("year")}-${get("month")}-${get("day")} ${hour}:${get("minute")}`;
+}
+
 export function fmtDateTime(value: string | null | undefined) {
   if (!value) return "—";
   const parsed = parseDateTime(value);

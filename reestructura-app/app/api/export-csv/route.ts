@@ -15,6 +15,15 @@ function isCallStatus(s: string): s is CallStatus {
   return (STATUS_ORDER as readonly string[]).includes(s);
 }
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Devuelve el día siguiente (YYYY-MM-DD) para usar como límite exclusivo. */
+function nextDay(yyyyMmDd: string): string {
+  const d = new Date(`${yyyyMmDd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 type AuthExport =
   | { ok: true }
   | { ok: false; response: NextResponse };
@@ -89,11 +98,34 @@ const postExportSchema = z.object({
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const statusParam = searchParams.get("status");
+    // Acepta múltiples estados: ?status=a&status=b o ?status=a,b
+    const statusParams = searchParams
+      .getAll("status")
+      .flatMap((s) => s.split(","))
+      .map((s) => s.trim())
+      .filter(Boolean);
     const uploadId = searchParams.get("upload_id");
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
 
-    if (statusParam && !isCallStatus(statusParam)) {
-      return NextResponse.json({ error: "Parámetro status inválido" }, { status: 400 });
+    const invalidStatus = statusParams.find((s) => !isCallStatus(s));
+    if (invalidStatus) {
+      return NextResponse.json(
+        { error: `Parámetro status inválido: ${invalidStatus}` },
+        { status: 400 }
+      );
+    }
+    if (fromParam && !DATE_RE.test(fromParam)) {
+      return NextResponse.json({ error: "Parámetro from inválido (use YYYY-MM-DD)" }, { status: 400 });
+    }
+    if (toParam && !DATE_RE.test(toParam)) {
+      return NextResponse.json({ error: "Parámetro to inválido (use YYYY-MM-DD)" }, { status: 400 });
+    }
+    if (fromParam && toParam && fromParam > toParam) {
+      return NextResponse.json(
+        { error: "El rango de fechas es inválido: 'desde' es posterior a 'hasta'." },
+        { status: 400 }
+      );
     }
 
     const supabase = createClient();
@@ -106,11 +138,21 @@ export async function GET(request: Request) {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (statusParam) {
-        query = query.eq("status", statusParam);
+      if (statusParams.length === 1) {
+        query = query.eq("status", statusParams[0]);
+      } else if (statusParams.length > 1) {
+        query = query.in("status", statusParams);
       }
       if (uploadId?.trim()) {
         query = query.eq("upload_id", uploadId.trim());
+      }
+      // Rango de fechas de importación (created_at = momento de la carga).
+      if (fromParam) {
+        query = query.gte("created_at", fromParam);
+      }
+      if (toParam) {
+        // Límite exclusivo del día siguiente para incluir todo el día "hasta".
+        query = query.lt("created_at", nextDay(toParam));
       }
 
       return query.range(from, to);
@@ -123,8 +165,10 @@ export async function GET(request: Request) {
     const rows = data;
     const csv = exportDashboardRowsToCsv(rows);
 
-    const slug = statusParam ?? "todos";
-    const safeSlug = slug.replace(/[^a-z0-9_-]/gi, "_");
+    const slugParts = [statusParams.length > 0 ? statusParams.join("-") : "todos"];
+    if (fromParam) slugParts.push(`desde-${fromParam}`);
+    if (toParam) slugParts.push(`hasta-${toParam}`);
+    const safeSlug = slugParts.join("_").replace(/[^a-z0-9_-]/gi, "_");
     const filename = `reestructura-export-${safeSlug}.csv`;
 
     return new NextResponse(csv, {

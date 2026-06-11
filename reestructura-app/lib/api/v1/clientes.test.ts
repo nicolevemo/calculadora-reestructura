@@ -39,6 +39,7 @@ const baseRow: ClienteDashboardRow = {
   pdf_enviado_at: null,
   assigned_to: null,
   last_activity_at: "2026-05-14T12:00:00.000Z",
+  ultima_edicion: "2026-05-14T12:00:00.000Z",
   assigned_to_name: null,
   upload_week_of: null,
   upload_filename: "shortlist.csv",

@@ -100,6 +100,7 @@ export async function updateClienteFields(
       semana_siguiente: input.semana_siguiente,
       ingresos_api: input.ingresos_api,
       viajes_api: input.viajes_api,
+      updated_at: new Date().toISOString(),
     };
 
     // Verificar que el cliente exista antes de actualizar

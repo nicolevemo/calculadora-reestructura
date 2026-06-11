@@ -106,6 +106,8 @@ export interface ClienteDashboardRow {
   pdf_enviado_at: string | null;
   assigned_to: string | null;
   last_activity_at: string | null;
+  /** Fecha del último cambio guardado (datos del cliente o negociación). */
+  ultima_edicion: string | null;
   assigned_to_name: string | null;
   upload_week_of: string | null;
   upload_filename: string | null;
