@@ -9,6 +9,7 @@ export type CallStatus =
   | "necesita_revision"
   | "enviado_recuperar"
   | "cerrado"
+  | "no_aplica"
   | "pendiente_firma"
   | "firmado"
   | "aplicado";

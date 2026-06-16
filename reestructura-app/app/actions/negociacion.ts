@@ -19,6 +19,7 @@ const CALL_STATUSES: [CallStatus, ...CallStatus[]] = [
   "necesita_revision",
   "enviado_recuperar",
   "cerrado",
+  "no_aplica",
   "pendiente_firma",
   "firmado",
   "aplicado",

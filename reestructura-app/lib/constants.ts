@@ -18,6 +18,7 @@ export const STATUS = {
   necesita_revision: { label: "Necesita revisión",     color: "purple" },
   enviado_recuperar: { label: "Enviado a Recuperar",   color: "orange" },
   cerrado:           { label: "Cerrado",               color: "slate" },
+  no_aplica:         { label: "No aplica",             color: "gray" },
   pendiente_firma:   { label: "Pendiente de firma",    color: "blue" },
   firmado:           { label: "Firmado",               color: "green" },
   aplicado:          { label: "Aplicado",              color: "green" },
@@ -35,6 +36,7 @@ export const STATUS_ORDER: CallStatus[] = [
   "necesita_revision",
   "enviado_recuperar",
   "cerrado",
+  "no_aplica",
   "pendiente_firma",
   "firmado",
   "aplicado",
@@ -53,6 +55,7 @@ export const STATUS_SELECTOR: CallStatus[] = [
   "necesita_revision",
   "enviado_recuperar",
   "cerrado",
+  "no_aplica",
 ];
 
 /** Alias por si el código referencia el nombre del árbol de archivos del brief */

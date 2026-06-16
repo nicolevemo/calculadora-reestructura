@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AssignableAgent } from "@/lib/assignable-agents";
-import { STATUS, STATUS_ORDER } from "@/lib/constants";
+import { STATUS, STATUS_ORDER, STATUS_SELECTOR } from "@/lib/constants";
 import { isClienteExportado } from "@/lib/cliente-export";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import type { CallStatus, ClienteDashboardRow } from "@/lib/types";
@@ -401,7 +401,7 @@ export function DashboardClients({
             <div className="mx-1 my-1 h-px bg-border" />
             <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Gestión</div>
             <SelectGroup>
-              {(["listo_contactar","sin_respuesta","en_negociacion","aceptado","rechazado","necesita_revision","enviado_recuperar","cerrado"] as CallStatus[]).map((s) => (
+              {STATUS_SELECTOR.map((s) => (
                 <SelectItem key={s} value={s}>
                   {STATUS[s].label} ({totalStats.byStatus[s] ?? 0})
                 </SelectItem>

@@ -128,7 +128,12 @@ function todayMx() {
 }
 
 /** Estados donde no se requiere pago de intención → default $0 */
-const ZERO_PAGO_STATUSES: CallStatus[] = ["listo_contactar", "sin_respuesta", "necesita_revision"];
+const ZERO_PAGO_STATUSES: CallStatus[] = [
+  "listo_contactar",
+  "sin_respuesta",
+  "necesita_revision",
+  "no_aplica",
+];
 
 function deriveInitialPago(ci: CalculatorClientInput, pi: number | null, status: CallStatus) {
   if (pi != null && pi > 0) {

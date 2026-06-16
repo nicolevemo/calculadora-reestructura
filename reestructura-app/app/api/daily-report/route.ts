@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSessionProfile } from "@/lib/session-profile";
-import { RULES } from "@/lib/constants";
+import { RULES, STATUS_ORDER } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { CallStatus } from "@/lib/types";
@@ -142,20 +142,7 @@ async function fetchLiveSnapshot(date: string): Promise<DailyReportSnapshot> {
   const all = rows ?? [];
 
   // Counts per status
-  const ALL_STATUSES: CallStatus[] = [
-    "listo_contactar",
-    "sin_respuesta",
-    "en_negociacion",
-    "aceptado",
-    "rechazado",
-    "necesita_revision",
-    "enviado_recuperar",
-    "cerrado",
-    "pendiente_firma",
-    "firmado",
-    "aplicado",
-  ];
-  const por_status = ALL_STATUSES.reduce(
+  const por_status = STATUS_ORDER.reduce(
     (acc, s) => ({ ...acc, [s]: 0 }),
     {} as Record<CallStatus, number>
   );
