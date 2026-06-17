@@ -105,8 +105,7 @@ export function PagoIntencionBlock({
       <div className="space-y-2">
         <h3 className="text-sm font-semibold leading-none text-foreground">Pago de intención</h3>
         <p className="text-sm leading-snug text-muted-foreground">
-          Monto extra en el pago total de hoy. Mínimo {formatMx(min)} · máximo {formatMx(max)} (50%
-          del saldo a regularizar).
+          Monto extra en el pago total de hoy. Máximo {formatMx(max)} (50% del saldo a regularizar).
         </p>
       </div>
 
@@ -127,18 +126,20 @@ export function PagoIntencionBlock({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={amountMatchesPreset(currentAmount, min) ? "default" : "outline"}
-          className={cn(
-            amountMatchesPreset(currentAmount, min) &&
-              "ring-2 ring-primary ring-offset-2 ring-offset-background"
-          )}
-          onClick={() => applyAmount(min)}
-        >
-          Mínimo
-        </Button>
+        {min > 0 ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={amountMatchesPreset(currentAmount, min) ? "default" : "outline"}
+            className={cn(
+              amountMatchesPreset(currentAmount, min) &&
+                "ring-2 ring-primary ring-offset-2 ring-offset-background"
+            )}
+            onClick={() => applyAmount(min)}
+          >
+            Mínimo
+          </Button>
+        ) : null}
         {QUICK_AMOUNTS.map((amount) => {
           const inRange = isPresetInRange(amount, min, max);
           const selected = inRange && amountMatchesPreset(currentAmount, amount);
@@ -224,7 +225,7 @@ export function PagoIntencionBlock({
           "Dentro del rango permitido."
         ) : (
           <>
-            Ingresá un monto entre {formatMx(min)} y {formatMx(max)}, o usá los atajos de arriba.
+            Ingresá un monto hasta {formatMx(max)}, o usá los atajos de arriba.
           </>
         )}
       </div>

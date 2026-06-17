@@ -144,13 +144,13 @@ describe("calculate", () => {
   });
 
   it("flags isValid within min/max", () => {
-    const rMin = calculate(base, RULES.PAGO_INTENCION_MIN);
-    expect(rMin.isValid).toBe(true);
-    const max = rMin.pagoIntencionMax;
-    const rMax = calculate(base, max);
-    expect(rMax.isValid).toBe(true);
+    expect(calculate(base, 0).isValid).toBe(true);
+    expect(calculate(base, 100).isValid).toBe(true);
+    expect(calculate(base, 100).isBelowMin).toBe(false);
+    const max = calculate(base, 0).pagoIntencionMax;
+    expect(calculate(base, max).isValid).toBe(true);
     expect(calculate(base, max + 1).isAboveMax).toBe(true);
-    expect(calculate(base, 100).isBelowMin).toBe(true);
+    expect(RULES.PAGO_INTENCION_MIN).toBe(0);
   });
 
   it("applies bono pronto pago to nueva semanalidad when flag set", () => {
@@ -164,7 +164,7 @@ describe("calculate", () => {
 
   it("nueva semanalidad con bono never goes below zero", () => {
     const tiny = { ...base, semana: 100 };
-    const r = calculate(tiny, RULES.PAGO_INTENCION_MIN, { bonoProntoPago: true });
+    const r = calculate(tiny, 1, { bonoProntoPago: true });
     expect(r.nuevaSemanalidadConBono).toBeGreaterThanOrEqual(0);
   });
 });

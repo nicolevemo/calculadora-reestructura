@@ -1,7 +1,7 @@
 import type { CallStatus } from "./types";
 
 export const RULES = {
-  PAGO_INTENCION_MIN: 5000,
+  PAGO_INTENCION_MIN: 0,
   PAGO_INTENCION_PCT_MAX: 0.5,
   TOPE_INCREMENTAL_RENTA: 200,
   MAX_INTENTOS: 5,
